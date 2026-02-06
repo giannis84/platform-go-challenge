@@ -1,31 +1,150 @@
-# GlobalWebIndex Engineering Challenge
+# GWI Favourites Service
 
-## Introduction
+A small Go service that lets users save their favourite assets (charts, insights, audiences). It talks to PostgreSQL for storage and is meant to be run with Docker Compose.
 
-This challenge is designed to give you the opportunity to demonstrate your abilities as a software engineer and specifically your knowledge of the Go language.
+## How it works
 
-On the surface the challenge is trivial to solve, however you should choose to add features or capabilities which you feel demonstrate your skills and knowledge the best. For example, you could choose to optimise for performance and concurrency, you could choose to add a robust security layer or ensure your application is highly available. Or all of these.
+There are two main concepts:
 
-Of course, usually we would choose to solve any given requirement with the simplest possible solution, however that is not the spirit of this challenge.
+- **Assets** — these are platform entities like Charts, Insights, and Audiences. They're seeded into an in-memory store when the app starts up. Think of them as the "catalog" of things a user can favourite.
+- **Favourites** — a user picks an asset they like and optionally adds a personal description. When you fetch a user's favourites, each one comes back enriched with its full asset data.
 
-## Challenge
+## API
 
-Let's say that in GWI platform all of our users have access to a huge list of assets. We want our users to have a peronal list of favourites, meaning assets that favourite or “star” so that they have them in their frontpage dashboard for quick access. An asset can be one the following
-* Chart (that has a small title, axes titles and data)
-* Insight (a small piece of text that provides some insight into a topic, e.g. "40% of millenials spend more than 3hours on social media daily")
-* Audience (which is a series of characteristics, for that exercise lets focus on gender (Male, Female), birth country, age groups, hours spent daily on social media, number of purchases last month)
-e.g. Males from 24-35 that spent more than 3 hours on social media daily.
+Every request needs a JWT token in the `Authorization: Bearer <token>` header. The user ID is pulled from the token's `sub` claim — there's no user ID in the URL.
 
-Build a web server which has some endpoint to receive a user id and return a list of all the user’s favourites. Also we want endpoints that would add an asset to favourites, remove it, or edit its description. Assets obviously can share some common attributes (like their description) but they also have completely different structure and data. It’s up to you to decide the structure and we are not looking for something overly complex here (especially for the cases of audiences). There is no need to have/deploy/create an actual database although we would like to discuss about storage options and data representations.
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/favourites` | Get all favourites for the authenticated user |
+| `POST` | `/api/v1/favourites` | Add a new favourite |
+| `PUT` | `/api/v1/favourites/{asset_id}` | Update a favourite's description |
+| `DELETE` | `/api/v1/favourites/{asset_id}` | Remove a favourite |
+| `GET` | `/health/ready` | Health check (served on a separate port) |
 
-Note that users have no limit on how many assets they want on their favourites so your service will need to provide a reasonable response time.
+Here's what the request/response bodies look like:
 
-A working server application with functional API is required, along with a clear readme.md. Useful and passing tests would be also be viewed favourably
+**Adding a favourite (POST):**
+```json
+{ "asset_id": "chart-1", "description": "My favourite chart" }
+```
 
-It is appreciated, though not required, if a Dockerfile is included.
+**Updating a description (PUT):**
+```json
+{ "description": "Updated description" }
+```
 
-## Submission
+**Listing favourites (GET) — returns something like:**
+```json
+[
+  {
+    "asset_id": "chart-1",
+    "type": "chart",
+    "description": "My favourite chart",
+    "data": { "title": "Social Media Usage", "x_axis": "Age Group", "y_axis": "Hours", "points": [...] }
+  }
+]
+```
 
-Just create a fork from the current repo and send it to us!
+There's also a full OpenAPI spec in `api/swagger.yaml` if you want the complete picture.
 
-Good luck, potential colleague!
+## Configuration
+
+The app reads port settings from `config.yaml` and/or environment variables (env vars win if both are set). Database and JWT settings only come from environment variables.
+
+| Setting | Env Variable | Config File Key | Default |
+|---------|-------------|-----------------|---------|
+| API port | `API_PORT` | `api_port` | `8000` |
+| Health port | `HEALTH_PORT` | `health_port` | `8001` |
+| DB host | `POSTGRES_HOST` | — | `postgres` (in Compose) |
+| DB port | `POSTGRES_PORT` | — | `5432` |
+| DB user | `POSTGRES_USER` | — | — |
+| DB password | `POSTGRES_PASSWORD` | — | — |
+| DB name | `POSTGRES_DB` | — | — |
+| JWT secret | `JWT_SECRET` | — | empty (accepts unsigned tokens) |
+
+You can point to a different config file by setting the `CONFIG_PATH` env var.
+
+## Getting it running
+
+The service needs PostgreSQL, so Docker Compose is the way to go.
+
+**1. Set up your `.env` file:**
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in at least `POSTGRES_USER` and `POSTGRES_PASSWORD`.
+
+**2. Start everything:**
+
+```bash
+docker compose up --build
+```
+
+This builds the Go binary, spins up Postgres, waits for it to be healthy, and then starts the app. Add `-d` to run it in the background.
+
+**3. When you're done:**
+
+```bash
+docker compose down
+```
+
+If you want a clean slate (wipe the database too):
+
+```bash
+docker compose down --volumes
+```
+
+## Testing
+
+### Unit tests
+
+```bash
+go test ./...
+```
+
+These use an in-memory repository, so no database needed.
+
+### End-to-end tests
+
+The E2E tests hit the real running services, so you need Compose up first:
+
+```bash
+docker compose up --build
+```
+
+Once both containers are healthy, open another terminal:
+
+```bash
+cd e2e_tests
+go clean -testcache
+go test -v -count=1
+```
+
+The tests automatically wait up to 60 seconds for the health endpoint before running, so you don't need to time it perfectly.
+
+## Authentication
+
+The API uses JWTs. There's a handy little tool included to generate tokens:
+
+```bash
+go run ./tools/tokengen -user alice
+```
+
+Use the token with curl like this:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/favourites
+```
+
+By default (when `JWT_SECRET` isn't set), the service accepts unsigned tokens (`alg=none`), which keeps local development simple. For production you'd set `JWT_SECRET` to enforce HS256-signed tokens.
+
+## Storage
+
+Favourites are stored in PostgreSQL. The table uses a composite primary key `(user_id, asset_id)` and keeps the polymorphic asset data in a `jsonb` column. The schema creates itself on startup (`CREATE TABLE IF NOT EXISTS`), so there's no migration step.
+
+A few things I'd consider for production:
+
+- **Caching** — something like Redis for hot user favourite lists.
+- **Scaling** — partitioning the favourites table by user ID hash for horizontal scaling.

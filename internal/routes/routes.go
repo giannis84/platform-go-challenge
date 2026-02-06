@@ -1,0 +1,258 @@
+package routes
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+
+	"github.com/giannis84/platform-go-challenge/internal/auth"
+	"github.com/giannis84/platform-go-challenge/internal/database"
+	"github.com/giannis84/platform-go-challenge/internal/handlers"
+	"github.com/giannis84/platform-go-challenge/internal/logging"
+	"github.com/giannis84/platform-go-challenge/internal/models"
+	"github.com/go-chi/chi/v5"
+)
+
+var favouritesRepo database.FavouritesRepository
+
+// initFavouritesRepository sets the repository used by favourites routes.
+// Must be called before registering routes.
+func initFavouritesRepository(repo database.FavouritesRepository) {
+	favouritesRepo = repo
+}
+
+// RegisterFavouritesRoutes returns a RouteRegistrar that sets up favourites API routes.
+// HTTP concerns are handled here, while business logic is delegated to the handlers package.
+// The jwtSecret parameter configures JWT validation; when empty, only unsigned
+// tokens (alg=none) are accepted, which is suitable for local development.
+func RegisterFavouritesRoutes(repo database.FavouritesRepository, jwtSecret string) func(r chi.Router) {
+	initFavouritesRepository(repo)
+	return func(r chi.Router) {
+		r.Route("/api/v1", func(r chi.Router) {
+			r.Use(auth.JWTMiddleware(jwtSecret))
+			r.Route("/favourites", func(r chi.Router) {
+				r.Get("/", getUserFavouritesRoute())
+				r.Post("/", addUserFavouriteRoute())
+				r.Patch("/{assetID}", updateUserFavouriteRoute())
+				r.Delete("/{assetID}", removeUserFavouriteRoute())
+			})
+		})
+	}
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+// Request payloads
+type AddFavouriteRequest struct {
+	AssetType   AssetType       `json:"asset_type"`
+	Description string          `json:"description"`
+	AssetData   json.RawMessage `json:"asset_data"`
+}
+
+type AssetType string
+
+const (
+	AssetTypeChart    AssetType = "chart"
+	AssetTypeInsight  AssetType = "insight"
+	AssetTypeAudience AssetType = "audience"
+)
+
+type UpdateDescriptionRequest struct {
+	Description string `json:"description"`
+}
+
+func getUserFavouritesRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userID := auth.UserIDFromContext(ctx)
+
+		logging.Log(ctx).Layer("routes").Op("getUserFavourites").User(userID).
+			Info("received get favourites request")
+
+		favourites, err := handlers.GetUserFavourites(favouritesRepo, userID)
+		if err != nil {
+			logging.Log(ctx).Layer("routes").User(userID).Err(err).
+				Error("failed to get user favourites")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		logging.Log(ctx).Layer("routes").Op("getUserFavourites").User(userID).
+			Int("count", len(favourites)).Int("status_code", http.StatusOK).
+			Info("favourites retrieved successfully")
+		respondWithJSON(w, http.StatusOK, favourites)
+	}
+}
+
+func addUserFavouriteRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userID := auth.UserIDFromContext(ctx)
+
+		var req AddFavouriteRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			logging.Log(ctx).Layer("routes").Op("addUserFavourite").User(userID).Err(err).
+				Error("failed to decode request body")
+			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		logging.Log(ctx).Layer("routes").Op("addUserFavourite").User(userID).
+			AssetType(string(req.AssetType)).Str("asset_data", string(req.AssetData)).
+			Info("received add favourite request")
+
+		var asset models.Asset
+		var err error
+
+		switch req.AssetType {
+		case AssetTypeChart:
+			var chart models.Chart
+			if err := json.Unmarshal(req.AssetData, &chart); err != nil {
+				logging.Log(ctx).Layer("routes").User(userID).Err(err).Error("failed to unmarshal chart data")
+				respondWithError(w, http.StatusBadRequest, "Invalid chart data")
+				return
+			}
+			asset = &chart
+		case AssetTypeInsight:
+			var insight models.Insight
+			if err := json.Unmarshal(req.AssetData, &insight); err != nil {
+				logging.Log(ctx).Layer("routes").User(userID).Err(err).Error("failed to unmarshal insight data")
+				respondWithError(w, http.StatusBadRequest, "Invalid insight data")
+				return
+			}
+			asset = &insight
+		case AssetTypeAudience:
+			var audience models.Audience
+			if err := json.Unmarshal(req.AssetData, &audience); err != nil {
+				logging.Log(ctx).Layer("routes").User(userID).Err(err).Error("failed to unmarshal audience data")
+				respondWithError(w, http.StatusBadRequest, "Invalid audience data")
+				return
+			}
+			asset = &audience
+		default:
+			logging.Log(ctx).Layer("routes").User(userID).AssetType(string(req.AssetType)).
+				Warn("invalid asset type received")
+			respondWithError(w, http.StatusBadRequest, "Invalid asset_type")
+			return
+		}
+
+		err = handlers.AddFavourite(ctx, favouritesRepo, userID, asset, req.Description)
+		if err != nil {
+			var validationErr *handlers.ValidationError
+			if errors.As(err, &validationErr) {
+				respondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			if err == database.ErrAlreadyExists {
+				logging.Log(ctx).Layer("routes").User(userID).Asset(asset.GetID()).
+					Warn("favourite already exists")
+				respondWithError(w, http.StatusConflict, "Favourite already exists")
+				return
+			}
+			logging.Log(ctx).Layer("routes").User(userID).Err(err).Error("failed to add favourite")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		logging.Log(ctx).Layer("routes").Op("addUserFavourite").User(userID).
+			Asset(asset.GetID()).AssetType(string(req.AssetType)).Int("status_code", http.StatusCreated).
+			Info("favourite added successfully")
+		respondWithJSON(w, http.StatusCreated, map[string]string{"message": "Favourite added successfully"})
+	}
+}
+
+func updateUserFavouriteRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userID := auth.UserIDFromContext(ctx)
+		assetID := chi.URLParam(r, "assetID")
+
+		if assetID == "" {
+			respondWithError(w, http.StatusBadRequest, "asset_id is required")
+			return
+		}
+
+		var req UpdateDescriptionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			logging.Log(ctx).Layer("routes").User(userID).Asset(assetID).Err(err).
+				Error("failed to decode request body")
+			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		logging.Log(ctx).Layer("routes").Op("updateUserFavourite").User(userID).Asset(assetID).
+			Str("description", req.Description).Info("received update favourite request")
+
+		err := handlers.UpdateDescription(favouritesRepo, userID, assetID, req.Description)
+		if err != nil {
+			var validationErr *handlers.ValidationError
+			if errors.As(err, &validationErr) {
+				logging.Log(ctx).Layer("routes").User(userID).Asset(assetID).Err(err).
+					Warn("validation error on update favourite")
+				respondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			if err == database.ErrNotFound {
+				logging.Log(ctx).Layer("routes").User(userID).Asset(assetID).
+					Warn("favourite not found")
+				respondWithError(w, http.StatusNotFound, "Favourite not found")
+				return
+			}
+			logging.Log(ctx).Layer("routes").User(userID).Asset(assetID).Err(err).
+				Error("failed to update favourite")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		logging.Log(ctx).Layer("routes").Op("updateUserFavourite").User(userID).Asset(assetID).
+			Int("status_code", http.StatusOK).Info("favourite updated successfully")
+		respondWithJSON(w, http.StatusOK, map[string]string{"message": "Description updated successfully"})
+	}
+}
+
+func removeUserFavouriteRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userID := auth.UserIDFromContext(ctx)
+		assetID := chi.URLParam(r, "assetID")
+
+		if assetID == "" {
+			respondWithError(w, http.StatusBadRequest, "asset_id is required")
+			return
+		}
+
+		logging.Log(ctx).Layer("routes").Op("removeUserFavourite").User(userID).Asset(assetID).
+			Info("received remove favourite request")
+
+		err := handlers.RemoveFavourite(favouritesRepo, userID, assetID)
+		if err != nil {
+			if err == database.ErrNotFound {
+				logging.Log(ctx).Layer("routes").User(userID).Asset(assetID).
+					Warn("favourite not found")
+				respondWithError(w, http.StatusNotFound, "Favourite not found")
+				return
+			}
+			logging.Log(ctx).Layer("routes").User(userID).Asset(assetID).Err(err).
+				Error("failed to remove favourite")
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		logging.Log(ctx).Layer("routes").Op("removeUserFavourite").User(userID).Asset(assetID).
+			Int("status_code", http.StatusOK).Info("favourite removed successfully")
+		respondWithJSON(w, http.StatusOK, map[string]string{"message": "Favourite removed successfully"})
+	}
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload any) {
+	response, _ := json.Marshal(payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(response)
+}
+
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	respondWithJSON(w, code, ErrorResponse{Error: message})
+}

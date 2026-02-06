@@ -1,0 +1,4 @@
+# Default configuration for local development.
+# In production, override via environment variables (API_PORT, HEALTH_PORT).
+api_port: "8000"
+health_port: "8001"
