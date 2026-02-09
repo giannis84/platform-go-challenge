@@ -89,8 +89,8 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// DSN returns a PostgreSQL connection string.
-func (c *Config) DSN() string {
+// PostgresConnString returns a PostgreSQL connection string.
+func (c *Config) PostgresConnString() string {
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName,

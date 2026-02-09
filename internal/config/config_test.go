@@ -196,7 +196,7 @@ func TestDSN(t *testing.T) {
 	}
 
 	want := "host=dbhost port=5432 user=myuser password=mypass dbname=mydb sslmode=disable"
-	got := cfg.DSN()
+	got := cfg.PostgresConnString()
 	if got != want {
 		t.Errorf("DSN() = %q, want %q", got, want)
 	}

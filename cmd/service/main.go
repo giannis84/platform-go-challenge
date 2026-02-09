@@ -32,7 +32,7 @@ func main() {
 	)
 
 	// Connect to PostgreSQL and initialise schema
-	db, err := database.Connect(cfg.DSN())
+	db, err := database.Connect(cfg.PostgresConnString())
 	if err != nil {
 		logger.Error("failed to initialise database", slog.String(logging.ErrorKey, err.Error()))
 		os.Exit(1)
