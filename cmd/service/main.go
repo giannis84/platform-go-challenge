@@ -40,8 +40,6 @@ func main() {
 	defer db.Close()
 	logger.Info("database ready")
 
-	repo := database.NewPostgresRepository(db)
-
 	// Create health check and favourites http services
 	healthService := internal.NewService(internal.ServiceConfig{
 		Addr:   cfg.HealthAddr(),
@@ -51,7 +49,7 @@ func main() {
 	apiService := internal.NewService(internal.ServiceConfig{
 		Addr:   cfg.APIAddr(),
 		Logger: logger,
-		Routes: routes.RegisterFavouritesRoutes(repo, cfg.JWTSecret),
+		Routes: routes.RegisterFavouritesRoutes(db, cfg.JWTSecret),
 	})
 
 	// Start http service threads

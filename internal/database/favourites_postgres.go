@@ -11,7 +11,12 @@ import (
 	"github.com/lib/pq"
 )
 
-// PostgresRepository implements FavouritesRepository using PostgreSQL.
+var (
+	ErrNotFound      = errors.New("favourite not found")
+	ErrAlreadyExists = errors.New("favourite already exists")
+)
+
+// PostgresRepository provides favourites storage backed by PostgreSQL.
 type PostgresRepository struct {
 	db *sql.DB
 }

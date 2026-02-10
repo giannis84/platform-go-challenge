@@ -10,18 +10,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/giannis84/platform-go-challenge/internal/database"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/giannis84/platform-go-challenge/internal/logging"
+	"github.com/giannis84/platform-go-challenge/internal/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/lib/pq"
 )
 
-// testLogger returns a logger that discards all output for tests
+var testCols = []string{"id", "user_id", "asset_type", "description", "data", "created_at", "updated_at"}
+
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// testToken returns an unsigned JWT with the given subject.
 func testToken(sub string) string {
 	claims := jwt.MapClaims{
 		"sub": sub,
@@ -32,65 +34,28 @@ func testToken(sub string) string {
 	return s
 }
 
-// addAuthHeader adds a Bearer token for the given user to the request.
 func addAuthHeader(req *http.Request, userID string) {
 	req.Header.Set("Authorization", "Bearer "+testToken(userID))
 }
 
-func setupTestHandler() *chi.Mux {
+func setupTestHandler(t *testing.T) (*chi.Mux, sqlmock.Sqlmock) {
+	t.Helper()
 	logger := testLogger()
-	repo := database.NewMockRepository()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
 
 	router := chi.NewRouter()
-	router.Use(logging.RequestLogger(logger)) // Add test logger middleware
-	router.Group(RegisterFavouritesRoutes(repo, "")) // empty secret = unsigned tokens
+	router.Use(logging.RequestLogger(logger))
+	router.Group(RegisterFavouritesRoutes(db, ""))
 
-	return router
+	return router, mock
 }
 
-func TestFavouritesRoutes_AddFavourite(t *testing.T) {
-	router := setupTestHandler()
-
-	requestBody := map[string]any{
-		"asset_type":  "chart",
-		"description": "Monthly sales data",
-		"asset_data": map[string]any{
-			"id":           "chart1",
-			"title":        "Sales Chart",
-			"x_axis_title": "Month",
-			"y_axis_title": "Sales",
-			"data": map[string]any{
-				"Jan": 1000,
-				"Feb": 1500,
-			},
-		},
-	}
-
-	body, _ := json.Marshal(requestBody)
-	req := httptest.NewRequest("POST", "/api/v1/favourites", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	addAuthHeader(req, "user1")
-
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	if status := rr.Code; status != http.StatusCreated {
-		t.Errorf("Expected status %d, got %d", http.StatusCreated, status)
-	}
-
-	var response map[string]string
-	json.Unmarshal(rr.Body.Bytes(), &response)
-
-	if response["message"] != "Favourite added successfully" {
-		t.Errorf("Expected success message, got %s", response["message"])
-	}
-}
-
-func TestFavouritesRoutes_GetUserFavourites(t *testing.T) {
-	router := setupTestHandler()
-
-	// Add a favourite first
-	requestBody := map[string]any{
+func insightRequestBody() map[string]any {
+	return map[string]any{
 		"asset_type":  "insight",
 		"description": "Social media usage insight",
 		"asset_data": map[string]any{
@@ -98,148 +63,212 @@ func TestFavouritesRoutes_GetUserFavourites(t *testing.T) {
 			"text": "40% of millennials spend more than 3 hours on social media daily",
 		},
 	}
+}
 
-	body, _ := json.Marshal(requestBody)
-	addReq := httptest.NewRequest("POST", "/api/v1/favourites", bytes.NewBuffer(body))
-	addReq.Header.Set("Content-Type", "application/json")
-	addAuthHeader(addReq, "user1")
+func audienceRequestBody() map[string]any {
+	return map[string]any{
+		"asset_type":  "audience",
+		"description": "Tech-savvy millennials",
+		"asset_data": map[string]any{
+			"id":                      "audience1",
+			"gender":                  []string{"Male", "Female"},
+			"birth_country":           []string{"US", "UK"},
+			"age_groups":              []string{"25-34"},
+			"social_media_hours_daily": "3-5",
+			"purchases_last_month":    5,
+		},
+	}
+}
+
+func postFavourite(t *testing.T, router *chi.Mux, body map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	data, _ := json.Marshal(body)
+	req := httptest.NewRequest("POST", "/api/v1/favourites", bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	addAuthHeader(req, "user1")
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, addReq)
+	router.ServeHTTP(rr, req)
+	return rr
+}
 
-	// Now get the favourites
+func TestFavouritesRoutes_AddFavourite(t *testing.T) {
+	router, mock := setupTestHandler(t)
+
+	mock.ExpectExec("INSERT INTO favourites").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	rr := postFavourite(t, router, insightRequestBody())
+
+	if status := rr.Code; status != http.StatusCreated {
+		t.Errorf("expected status %d, got %d. Body: %s", http.StatusCreated, status, rr.Body.String())
+	}
+
+	var resp map[string]string
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["message"] != "Favourite added successfully" {
+		t.Errorf("unexpected response: %v", resp)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
+func TestFavouritesRoutes_GetUserFavourites(t *testing.T) {
+	router, mock := setupTestHandler(t)
+	now := time.Now()
+
+	// Add favourite
+	mock.ExpectExec("INSERT INTO favourites").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	rr := postFavourite(t, router, insightRequestBody())
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("setup failed: status %d, body: %s", rr.Code, rr.Body.String())
+	}
+
+	// Get favourites
+	insightData, _ := json.Marshal(models.Insight{
+		ID:   "insight1",
+		Text: "40% of millennials spend more than 3 hours on social media daily",
+	})
+	mock.ExpectQuery("SELECT .+ FROM favourites WHERE user_id").
+		WithArgs("user1").
+		WillReturnRows(sqlmock.NewRows(testCols).
+			AddRow("insight1", "user1", "insight", "Social media usage insight", insightData, now, now))
+
 	req := httptest.NewRequest("GET", "/api/v1/favourites", nil)
 	addAuthHeader(req, "user1")
 	rr = httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, status)
+		t.Errorf("expected status %d, got %d. Body: %s", http.StatusOK, status, rr.Body.String())
 	}
 
 	var favourites []any
 	json.Unmarshal(rr.Body.Bytes(), &favourites)
-
 	if len(favourites) != 1 {
-		t.Errorf("Expected 1 favourite, got %d", len(favourites))
+		t.Errorf("expected 1 favourite, got %d", len(favourites))
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
 	}
 }
 
 func TestFavouritesRoutes_UpdateDescription(t *testing.T) {
-	router := setupTestHandler()
+	router, mock := setupTestHandler(t)
+	now := time.Now()
 
-	// Add a favourite first
-	requestBody := map[string]any{
-		"asset_type":  "audience",
-		"description": "Tech-savvy millennials",
-		"asset_data": map[string]any{
-			"id":                       "audience1",
-			"gender":                   []string{"Male", "Female"},
-			"birth_country":            []string{"US", "UK"},
-			"age_groups":               []string{"25-34"},
-			"social_media_hours_daily": "3-5",
-			"purchases_last_month":     5,
-		},
+	// Add favourite
+	mock.ExpectExec("INSERT INTO favourites").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	rr := postFavourite(t, router, audienceRequestBody())
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("setup failed: status %d, body: %s", rr.Code, rr.Body.String())
 	}
 
-	body, _ := json.Marshal(requestBody)
-	addReq := httptest.NewRequest("POST", "/api/v1/favourites", bytes.NewBuffer(body))
-	addReq.Header.Set("Content-Type", "application/json")
-	addAuthHeader(addReq, "user1")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, addReq)
+	// Update description: handler calls GetFavouriteFromDB then UpdateFavouriteInDB
+	audienceData, _ := json.Marshal(models.Audience{
+		ID: "audience1", Gender: []string{"Male", "Female"}, BirthCountry: []string{"US", "UK"},
+		AgeGroups: []string{"25-34"}, SocialMediaHoursDaily: "3-5", PurchasesLastMonth: 5,
+	})
+	mock.ExpectQuery("SELECT .+ FROM favourites WHERE user_id").
+		WithArgs("user1", "audience1").
+		WillReturnRows(sqlmock.NewRows(testCols).
+			AddRow("audience1", "user1", "audience", "Tech-savvy millennials", audienceData, now, now))
+	mock.ExpectExec("UPDATE favourites").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	// Update description
-	updateBody := map[string]string{
-		"description": "Updated audience description",
-	}
-	updateBodyBytes, _ := json.Marshal(updateBody)
-	req := httptest.NewRequest("PATCH", "/api/v1/favourites/audience1", bytes.NewBuffer(updateBodyBytes))
+	updateBody, _ := json.Marshal(map[string]string{"description": "Updated description for audience"})
+	req := httptest.NewRequest("PATCH", "/api/v1/favourites/audience1", bytes.NewBuffer(updateBody))
 	req.Header.Set("Content-Type", "application/json")
 	addAuthHeader(req, "user1")
-
 	rr = httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, status)
+		t.Errorf("expected status %d, got %d. Body: %s", http.StatusOK, status, rr.Body.String())
+	}
+
+	var resp map[string]string
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["message"] != "Description updated successfully" {
+		t.Errorf("unexpected response: %v", resp)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
 	}
 }
 
 func TestFavouritesRoutes_RemoveFavourite(t *testing.T) {
-	router := setupTestHandler()
+	router, mock := setupTestHandler(t)
 
-	// Add a favourite first
-	requestBody := map[string]any{
-		"asset_type": "chart",
-		"asset_data": map[string]any{
-			"id":           "chart1",
-			"title":        "Test Chart",
-			"x_axis_title": "X",
-			"y_axis_title": "Y",
-		},
+	// Add favourite
+	mock.ExpectExec("INSERT INTO favourites").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	rr := postFavourite(t, router, insightRequestBody())
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("setup failed: status %d, body: %s", rr.Code, rr.Body.String())
 	}
 
-	body, _ := json.Marshal(requestBody)
-	addReq := httptest.NewRequest("POST", "/api/v1/favourites", bytes.NewBuffer(body))
-	addReq.Header.Set("Content-Type", "application/json")
-	addAuthHeader(addReq, "user1")
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, addReq)
+	// Remove favourite
+	mock.ExpectExec("DELETE FROM favourites").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	// Remove the favourite
-	req := httptest.NewRequest("DELETE", "/api/v1/favourites/chart1", nil)
+	req := httptest.NewRequest("DELETE", "/api/v1/favourites/insight1", nil)
 	addAuthHeader(req, "user1")
 	rr = httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, status)
+		t.Errorf("expected status %d, got %d. Body: %s", http.StatusOK, status, rr.Body.String())
 	}
 
-	// Verify it's removed
-	getReq := httptest.NewRequest("GET", "/api/v1/favourites", nil)
-	addAuthHeader(getReq, "user1")
+	// Verify removed by getting empty list
+	mock.ExpectQuery("SELECT .+ FROM favourites WHERE user_id").
+		WithArgs("user1").
+		WillReturnRows(sqlmock.NewRows(testCols))
+
+	req = httptest.NewRequest("GET", "/api/v1/favourites", nil)
+	addAuthHeader(req, "user1")
 	rr = httptest.NewRecorder()
-	router.ServeHTTP(rr, getReq)
+	router.ServeHTTP(rr, req)
 
 	var favourites []any
 	json.Unmarshal(rr.Body.Bytes(), &favourites)
-
 	if len(favourites) != 0 {
-		t.Errorf("Expected 0 favourites after deletion, got %d", len(favourites))
+		t.Errorf("expected 0 favourites after removal, got %d", len(favourites))
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
 	}
 }
 
 func TestFavouritesRoutes_AddDuplicateFavourite(t *testing.T) {
-	router := setupTestHandler()
+	router, mock := setupTestHandler(t)
 
-	requestBody := map[string]any{
-		"asset_type": "chart",
-		"asset_data": map[string]any{
-			"id":           "chart1",
-			"title":        "Test Chart",
-			"x_axis_title": "X",
-			"y_axis_title": "Y",
-		},
+	// First add succeeds
+	mock.ExpectExec("INSERT INTO favourites").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	rr := postFavourite(t, router, insightRequestBody())
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("first add failed: status %d, body: %s", rr.Code, rr.Body.String())
 	}
 
-	body, _ := json.Marshal(requestBody)
+	// Second add returns unique violation
+	mock.ExpectExec("INSERT INTO favourites").
+		WillReturnError(&pq.Error{Code: "23505"})
+	rr = postFavourite(t, router, insightRequestBody())
 
-	// Add first time
-	req1 := httptest.NewRequest("POST", "/api/v1/favourites", bytes.NewBuffer(body))
-	req1.Header.Set("Content-Type", "application/json")
-	addAuthHeader(req1, "user1")
-	rr1 := httptest.NewRecorder()
-	router.ServeHTTP(rr1, req1)
+	if status := rr.Code; status != http.StatusConflict {
+		t.Errorf("expected status %d, got %d. Body: %s", http.StatusConflict, status, rr.Body.String())
+	}
 
-	// Add second time (duplicate)
-	req2 := httptest.NewRequest("POST", "/api/v1/favourites", bytes.NewBuffer(body))
-	req2.Header.Set("Content-Type", "application/json")
-	addAuthHeader(req2, "user1")
-	rr2 := httptest.NewRecorder()
-	router.ServeHTTP(rr2, req2)
-
-	if status := rr2.Code; status != http.StatusConflict {
-		t.Errorf("Expected status %d for duplicate, got %d", http.StatusConflict, status)
+	var resp map[string]string
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != "Favourite already exists" {
+		t.Errorf("unexpected error message: %v", resp)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
 	}
 }

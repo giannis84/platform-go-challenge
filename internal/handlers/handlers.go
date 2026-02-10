@@ -9,11 +9,13 @@ import (
 	"github.com/giannis84/platform-go-challenge/internal/models"
 )
 
-func GetUserFavourites(repo database.FavouritesRepository, userID string) ([]*models.FavouriteAsset, error) {
-	return repo.GetUserFavouritesFromDB(userID)
+var Repo *database.PostgresRepository
+
+func GetUserFavourites(userID string) ([]*models.FavouriteAsset, error) {
+	return Repo.GetUserFavouritesFromDB(userID)
 }
 
-func AddFavourite(ctx context.Context, repo database.FavouritesRepository, userID string, asset models.Asset, description string) error {
+func AddFavourite(ctx context.Context, userID string, asset models.Asset, description string) error {
 	if err := validateAsset(asset); err != nil {
 		return err
 	}
@@ -33,15 +35,15 @@ func AddFavourite(ctx context.Context, repo database.FavouritesRepository, userI
 		Time("created_at", favourite.CreatedAt).
 		Info("creating favourite asset")
 
-	return repo.AddFavouriteInDB(ctx, favourite)
+	return Repo.AddFavouriteInDB(ctx, favourite)
 }
 
-func UpdateDescription(repo database.FavouritesRepository, userID, assetID, description string) error {
+func UpdateDescription(userID, assetID, description string) error {
 	if err := validateDescription(description); err != nil {
 		return err
 	}
 
-	favourite, err := repo.GetFavouriteFromDB(userID, assetID)
+	favourite, err := Repo.GetFavouriteFromDB(userID, assetID)
 	if err != nil {
 		return err
 	}
@@ -49,11 +51,11 @@ func UpdateDescription(repo database.FavouritesRepository, userID, assetID, desc
 	favourite.Description = description
 	favourite.UpdatedAt = time.Now()
 
-	return repo.UpdateFavouriteInDB(favourite)
+	return Repo.UpdateFavouriteInDB(favourite)
 }
 
-func RemoveFavourite(repo database.FavouritesRepository, userID, assetID string) error {
-	return repo.DeleteFavouriteFromDB(userID, assetID)
+func RemoveFavourite(userID, assetID string) error {
+	return Repo.DeleteFavouriteFromDB(userID, assetID)
 }
 
 // validateAsset chooses the correct validation function based on asset type.

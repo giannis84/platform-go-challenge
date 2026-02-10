@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,20 +14,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-var favouritesRepo database.FavouritesRepository
-
-// initFavouritesRepository sets the repository used by favourites routes.
-// Must be called before registering routes.
-func initFavouritesRepository(repo database.FavouritesRepository) {
-	favouritesRepo = repo
-}
-
-// RegisterFavouritesRoutes returns a RouteRegistrar that sets up favourites API routes.
+// RegisterFavouritesRoutes sets up the favourites API routes.
 // HTTP concerns are handled here, while business logic is delegated to the handlers package.
-// The jwtSecret parameter configures JWT validation; when empty, only unsigned
-// tokens (alg=none) are accepted, which is suitable for local development.
-func RegisterFavouritesRoutes(repo database.FavouritesRepository, jwtSecret string) func(r chi.Router) {
-	initFavouritesRepository(repo)
+func RegisterFavouritesRoutes(db *sql.DB, jwtSecret string) func(r chi.Router) {
+	handlers.Repo = database.NewPostgresRepository(db)
 	return func(r chi.Router) {
 		r.Route("/api/v1", func(r chi.Router) {
 			r.Use(auth.JWTMiddleware(jwtSecret))
@@ -71,7 +62,7 @@ func getUserFavouritesRoute() http.HandlerFunc {
 		logging.Log(ctx).Layer("routes").Op("getUserFavourites").User(userID).
 			Info("received get favourites request")
 
-		favourites, err := handlers.GetUserFavourites(favouritesRepo, userID)
+		favourites, err := handlers.GetUserFavourites(userID)
 		if err != nil {
 			logging.Log(ctx).Layer("routes").User(userID).Err(err).
 				Error("failed to get user favourites")
@@ -138,7 +129,7 @@ func addUserFavouriteRoute() http.HandlerFunc {
 			return
 		}
 
-		err = handlers.AddFavourite(ctx, favouritesRepo, userID, asset, req.Description)
+		err = handlers.AddFavourite(ctx, userID, asset, req.Description)
 		if err != nil {
 			var validationErr *handlers.ValidationError
 			if errors.As(err, &validationErr) {
@@ -185,7 +176,7 @@ func updateUserFavouriteRoute() http.HandlerFunc {
 		logging.Log(ctx).Layer("routes").Op("updateUserFavourite").User(userID).Asset(assetID).
 			Str("description", req.Description).Info("received update favourite request")
 
-		err := handlers.UpdateDescription(favouritesRepo, userID, assetID, req.Description)
+		err := handlers.UpdateDescription(userID, assetID, req.Description)
 		if err != nil {
 			var validationErr *handlers.ValidationError
 			if errors.As(err, &validationErr) {
@@ -226,7 +217,7 @@ func removeUserFavouriteRoute() http.HandlerFunc {
 		logging.Log(ctx).Layer("routes").Op("removeUserFavourite").User(userID).Asset(assetID).
 			Info("received remove favourite request")
 
-		err := handlers.RemoveFavourite(favouritesRepo, userID, assetID)
+		err := handlers.RemoveFavourite(userID, assetID)
 		if err != nil {
 			if err == database.ErrNotFound {
 				logging.Log(ctx).Layer("routes").User(userID).Asset(assetID).
