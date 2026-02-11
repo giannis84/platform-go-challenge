@@ -396,11 +396,6 @@ func buildSchemas() map[string]Schema {
 // File writers
 // ---------------------------------------------------------------------------
 
-func projectRoot() string {
-	_, src, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(src), "..", "..")
-}
-
 func writeJSON(spec OpenAPI, path string) error {
 	data, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
@@ -419,8 +414,8 @@ func writeYAML(spec OpenAPI, path string) error {
 }
 
 func main() {
-	root := projectRoot()
-	outDir := filepath.Join(root, "api")
+	_, src, _, _ := runtime.Caller(0)
+	outDir := filepath.Join(filepath.Join(filepath.Dir(src), "..", ".."), "api")
 
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create api/ directory: %v\n", err)
