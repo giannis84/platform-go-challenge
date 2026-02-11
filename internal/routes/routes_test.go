@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/giannis84/platform-go-challenge/internal/auth"
 	"github.com/giannis84/platform-go-challenge/internal/database"
 	"github.com/giannis84/platform-go-challenge/internal/logging"
 	"github.com/giannis84/platform-go-challenge/internal/models"
@@ -52,7 +53,10 @@ func setupTestHandler(t *testing.T) (*chi.Mux, sqlmock.Sqlmock) {
 
 	router := chi.NewRouter()
 	router.Use(logging.RequestLogger(logger))
-	router.Group(RegisterFavouritesRoutes(""))
+	router.Group(RegisterFavouritesRoutes(auth.AuthConfig{
+		Secret:              "",
+		AllowUnsignedTokens: true,
+	}))
 
 	return router, mock
 }

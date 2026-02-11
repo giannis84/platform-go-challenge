@@ -13,13 +13,25 @@ type contextKey string
 
 const userIDKey contextKey = "userID"
 
+// AuthConfig holds JWT authentication configuration.
+type AuthConfig struct {
+	// Secret is the JWT signing secret. When empty, unsigned tokens may be accepted
+	// if AllowUnsignedTokens is true.
+	Secret string
+
+	// AllowUnsignedTokens permits unsigned JWT tokens (alg=none) when true.
+	// This should ONLY be enabled for local development and testing.
+	AllowUnsignedTokens bool
+}
+
 // JWTMiddleware returns HTTP middleware that validates a JWT from the
 // Authorization header and places the "sub" claim into the request context.
 //
-// When secret is empty, only unsigned tokens (alg=none) are accepted —
-// this is intended for local development and testing.
-// When secret is non-empty, only HS256-signed tokens are accepted.
-func JWTMiddleware(secret string) func(http.Handler) http.Handler {
+// When Secret is empty AND AllowUnsignedTokens is true, unsigned tokens (alg=none)
+// are accepted — this is intended for local development and testing only.
+// When Secret is non-empty, only HS256-signed tokens are accepted.
+// When Secret is empty AND AllowUnsignedTokens is false, all requests are rejected.
+func JWTMiddleware(cfg AuthConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenString, ok := extractBearerToken(r)
@@ -28,7 +40,13 @@ func JWTMiddleware(secret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			claims, err := parseToken(tokenString, secret)
+			// Reject unsigned tokens unless explicitly allowed
+			if cfg.Secret == "" && !cfg.AllowUnsignedTokens {
+				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
+
+			claims, err := parseToken(tokenString, cfg.Secret)
 			if err != nil {
 				http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusUnauthorized)
 				return

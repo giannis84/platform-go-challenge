@@ -56,7 +56,7 @@ func main() {
 		Addr:         cfg.APIAddr(),
 		Logger:       logger,
 		DB:           db,
-		Routes:       routes.RegisterFavouritesRoutes(cfg.JWTSecret),
+		Routes:       routes.RegisterFavouritesRoutes(cfg.AuthConfig()),
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,

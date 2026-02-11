@@ -60,7 +60,8 @@ The app reads port settings from `config.yaml` and/or environment variables (env
 | DB user | `POSTGRES_USER` | — | — |
 | DB password | `POSTGRES_PASSWORD` | — | — |
 | DB name | `POSTGRES_DB` | — | — |
-| JWT secret | `JWT_SECRET` | — | empty (accepts unsigned tokens) |
+| JWT secret | `JWT_SECRET` | — | empty |
+| Allow unsigned tokens | `ALLOW_UNSIGNED_TOKENS` | — | `false` |
 
 You can point to a different config file by setting the `CONFIG_PATH` env var.
 
@@ -138,7 +139,18 @@ Use the token with curl like this:
 curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/favourites
 ```
 
-By default (when `JWT_SECRET` isn't set), the service accepts unsigned tokens (`alg=none`), which keeps local development simple. For production you'd set `JWT_SECRET` to enforce HS256-signed tokens.
+### Token Modes
+
+The service supports two authentication modes:
+
+| Mode | Configuration | Use Case |
+|------|---------------|----------|
+| **Signed tokens** | Set `JWT_SECRET` | Production — tokens must be HS256-signed with the secret |
+| **Unsigned tokens** | No `JWT_SECRET` + `ALLOW_UNSIGNED_TOKENS=true` | Local development and testing only |
+
+**Important:** Unsigned tokens (`alg=none`) require explicit opt-in via `ALLOW_UNSIGNED_TOKENS=true`. This is a safety measure — if you forget to set `JWT_SECRET` in production but don't set `ALLOW_UNSIGNED_TOKENS`, all requests will be rejected.
+
+The Docker Compose setup defaults to `ALLOW_UNSIGNED_TOKENS=true` for easy local development. For production, always set a proper `JWT_SECRET` and leave `ALLOW_UNSIGNED_TOKENS` unset or `false`.
 
 ## Storage
 

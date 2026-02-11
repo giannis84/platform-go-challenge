@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/giannis84/platform-go-challenge/internal/auth"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,9 +21,16 @@ type Config struct {
 	WriteTimeout time.Duration `yaml:"write_timeout"`
 	IdleTimeout  time.Duration `yaml:"idle_timeout"`
 
-	// JWT signing secret (env var only). When empty, only unsigned tokens
-	// (alg=none) are accepted, this is suitable for local development.
+	// JWT signing secret (env var only for testing). When empty, only unsigned tokens
+	// (alg=none) are accepted if AllowUnsignedTokens is true.
+	// Normally in production it should be fetched from a secrets provider like Vault, 
+	// and not set via config file or env var.
 	JWTSecret string `yaml:"-"`
+
+	// AllowUnsignedTokens permits unsigned JWT tokens (alg=none) when true.
+	// This should ONLY be enabled for local development and testing.
+	// Requires explicit opt-in via ALLOW_UNSIGNED_TOKENS=true env var.
+	AllowUnsignedTokens bool `yaml:"-"`
 
 	// Database configuration (env vars only — secrets must not live in config.yaml)
 	DBHost     string `yaml:"-"`
@@ -73,8 +81,11 @@ func Load() (*Config, error) {
 	cfg.DBPassword = os.Getenv("POSTGRES_PASSWORD")
 	cfg.DBName = os.Getenv("POSTGRES_DB")
 
-	// JWT secret (optional — when empty, only unsigned tokens are accepted)
+	// JWT secret (optional — when empty AND AllowUnsignedTokens is true, unsigned tokens are accepted)
 	cfg.JWTSecret = os.Getenv("JWT_SECRET")
+
+	// Allow unsigned tokens (explicit opt-in for dev/test only)
+	cfg.AllowUnsignedTokens = os.Getenv("ALLOW_UNSIGNED_TOKENS") == "true"
 
 	// HTTP server timeouts (optional — defaults apply in server.go if zero)
 	if v := os.Getenv("READ_TIMEOUT"); v != "" {
@@ -128,4 +139,12 @@ func (c *Config) APIAddr() string {
 // HealthAddr returns the listen address for the health check server.
 func (c *Config) HealthAddr() string {
 	return ":" + c.HealthPort
+}
+
+// AuthConfig returns the JWT authentication configuration.
+func (c *Config) AuthConfig() auth.AuthConfig {
+	return auth.AuthConfig{
+		Secret:              c.JWTSecret,
+		AllowUnsignedTokens: c.AllowUnsignedTokens,
+	}
 }

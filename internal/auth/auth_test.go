@@ -41,8 +41,8 @@ var dummyHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request)
 
 // ---------- tests ----------
 
-func TestJWTMiddleware_UnsignedMode(t *testing.T) {
-	mw := JWTMiddleware("") // no secret → accept alg=none
+func TestJWTMiddleware_UnsignedModeAllowed(t *testing.T) {
+	mw := JWTMiddleware(AuthConfig{Secret: "", AllowUnsignedTokens: true})
 
 	tests := []struct {
 		name       string
@@ -107,9 +107,46 @@ func TestJWTMiddleware_UnsignedMode(t *testing.T) {
 	}
 }
 
+func TestJWTMiddleware_UnsignedModeDisabled(t *testing.T) {
+	// When AllowUnsignedTokens is false and no secret, all requests should be rejected
+	mw := JWTMiddleware(AuthConfig{Secret: "", AllowUnsignedTokens: false})
+
+	tests := []struct {
+		name       string
+		authHeader string
+		wantStatus int
+	}{
+		{
+			name:       "unsigned token rejected when not allowed",
+			authHeader: "Bearer " + unsignedToken("user42", time.Now().Add(time.Hour)),
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "signed token also rejected (no secret configured)",
+			authHeader: "Bearer " + signedToken("user1", "secret", time.Now().Add(time.Hour)),
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+			rr := httptest.NewRecorder()
+			mw(dummyHandler).ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d; body: %s", rr.Code, tt.wantStatus, rr.Body.String())
+			}
+		})
+	}
+}
+
 func TestJWTMiddleware_SignedMode(t *testing.T) {
 	const secret = "test-secret"
-	mw := JWTMiddleware(secret)
+	mw := JWTMiddleware(AuthConfig{Secret: secret, AllowUnsignedTokens: false})
 
 	tests := []struct {
 		name       string
