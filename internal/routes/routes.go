@@ -19,6 +19,8 @@ func RegisterFavouritesRoutes(authCfg auth.AuthConfig) func(r chi.Router) {
 		r.Route("/api/v1", func(r chi.Router) {
 			r.Use(auth.JWTMiddleware(authCfg))
 			r.Route("/favourites", func(r chi.Router) {
+				r.Use(acceptJSONMiddleware)
+				r.Use(contentTypeJSONMiddleware)
 				r.Get("/", getUserFavouritesRoute())
 				r.Post("/", addUserFavouriteRoute())
 				r.Patch("/{assetID}", updateUserFavouriteRoute())
@@ -26,6 +28,62 @@ func RegisterFavouritesRoutes(authCfg auth.AuthConfig) func(r chi.Router) {
 			})
 		})
 	}
+}
+
+// acceptJSONMiddleware checks that the Accept header includes application/json.
+// Returns 406 Not Acceptable if the header is missing or doesn't accept JSON.
+func acceptJSONMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if accept == "" || !acceptsJSON(accept) {
+			respondWithError(w, http.StatusNotAcceptable, "Accept header must include application/json")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// contentTypeJSONMiddleware checks that requests with bodies have Content-Type: application/json.
+// Returns 415 Unsupported Media Type if the header is missing or incorrect.
+// Only applies to POST, PUT, and PATCH methods.
+func contentTypeJSONMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
+			contentType := r.Header.Get("Content-Type")
+			if contentType == "" || !isJSONContentType(contentType) {
+				respondWithError(w, http.StatusUnsupportedMediaType, "Content-Type header must be application/json")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// acceptsJSON checks if the Accept header value includes application/json or */*.
+func acceptsJSON(accept string) bool {
+	return accept == "*/*" ||
+		accept == "application/json" ||
+		contains(accept, "application/json") ||
+		contains(accept, "*/*")
+}
+
+// isJSONContentType checks if the Content-Type header indicates JSON.
+func isJSONContentType(contentType string) bool {
+	return contentType == "application/json" || contains(contentType, "application/json")
+}
+
+// contains checks if substr is present in s (simple substring check).
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 type ErrorResponse struct {

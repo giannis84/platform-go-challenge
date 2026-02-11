@@ -126,6 +126,7 @@ func doRequest(t *testing.T, method, url, userID string, body any) apiResponse {
 	if err != nil {
 		t.Fatalf("create request: %v", err)
 	}
+	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -270,6 +271,7 @@ func TestAddFavourite_Duplicate(t *testing.T) {
 func TestAddFavourite_InvalidBody(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPost, favouritesURL(),
 		bytes.NewReader([]byte("not json")))
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tokenForUser("e2e-add-3"))
 
