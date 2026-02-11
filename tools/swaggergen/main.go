@@ -37,7 +37,6 @@ import (
 type OpenAPI struct {
 	OpenAPI    string               `json:"openapi"              yaml:"openapi"`
 	Info       Info                 `json:"info"                 yaml:"info"`
-	Servers    []Server             `json:"servers,omitempty"    yaml:"servers,omitempty"`
 	Paths      map[string]*PathItem `json:"paths"                yaml:"paths"`
 	Components Components           `json:"components"           yaml:"components"`
 }
@@ -46,11 +45,6 @@ type Info struct {
 	Title       string `json:"title"       yaml:"title"`
 	Description string `json:"description" yaml:"description"`
 	Version     string `json:"version"     yaml:"version"`
-}
-
-type Server struct {
-	URL         string `json:"url"         yaml:"url"`
-	Description string `json:"description" yaml:"description"`
 }
 
 type PathItem struct {
