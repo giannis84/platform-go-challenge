@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -13,6 +14,11 @@ const defaultConfigPath = "config.yaml"
 type Config struct {
 	APIPort    string `yaml:"api_port"`
 	HealthPort string `yaml:"health_port"`
+
+	// HTTP server timeouts (optional, defaults apply in server.go)
+	ReadTimeout  time.Duration `yaml:"read_timeout"`
+	WriteTimeout time.Duration `yaml:"write_timeout"`
+	IdleTimeout  time.Duration `yaml:"idle_timeout"`
 
 	// JWT signing secret (env var only). When empty, only unsigned tokens
 	// (alg=none) are accepted, this is suitable for local development.
@@ -69,6 +75,23 @@ func Load() (*Config, error) {
 
 	// JWT secret (optional — when empty, only unsigned tokens are accepted)
 	cfg.JWTSecret = os.Getenv("JWT_SECRET")
+
+	// HTTP server timeouts (optional — defaults apply in server.go if zero)
+	if v := os.Getenv("READ_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.ReadTimeout = d
+		}
+	}
+	if v := os.Getenv("WRITE_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.WriteTimeout = d
+		}
+	}
+	if v := os.Getenv("IDLE_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.IdleTimeout = d
+		}
+	}
 
 	if cfg.DBHost == "" {
 		return nil, fmt.Errorf("POSTGRES_HOST env var is required")

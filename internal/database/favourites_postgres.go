@@ -16,24 +16,17 @@ var (
 	ErrAlreadyExists = errors.New("favourite already exists")
 )
 
-// PostgresRepository provides favourites storage backed by PostgreSQL.
-type PostgresRepository struct {
-	db *sql.DB
-}
+// DB is the package-level database connection.
+var DB *sql.DB
 
-// NewPostgresRepository creates a new PostgresRepository backed by the given *sql.DB.
-func NewPostgresRepository(db *sql.DB) *PostgresRepository {
-	return &PostgresRepository{db: db}
-}
-
-func (r *PostgresRepository) GetUserFavouritesFromDB(userID string) ([]*models.FavouriteAsset, error) {
+func GetUserFavouritesFromDB(userID string) ([]*models.FavouriteAsset, error) {
 	const query = `
 		SELECT id, user_id, asset_type, description, data, created_at, updated_at
 		FROM favourites
 		WHERE user_id = $1
 		ORDER BY created_at DESC`
 
-	rows, err := r.db.Query(query, userID)
+	rows, err := DB.Query(query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("querying user favourites: %w", err)
 	}
@@ -57,13 +50,13 @@ func (r *PostgresRepository) GetUserFavouritesFromDB(userID string) ([]*models.F
 	return favourites, nil
 }
 
-func (r *PostgresRepository) GetFavouriteFromDB(userID, assetID string) (*models.FavouriteAsset, error) {
+func GetFavouriteFromDB(userID, assetID string) (*models.FavouriteAsset, error) {
 	const query = `
 		SELECT id, user_id, asset_type, description, data, created_at, updated_at
 		FROM favourites
 		WHERE user_id = $1 AND id = $2`
 
-	row := r.db.QueryRow(query, userID, assetID)
+	row := DB.QueryRow(query, userID, assetID)
 
 	var fav models.FavouriteAsset
 	var rawData []byte
@@ -89,7 +82,7 @@ func (r *PostgresRepository) GetFavouriteFromDB(userID, assetID string) (*models
 	return &fav, nil
 }
 
-func (r *PostgresRepository) AddFavouriteInDB(ctx context.Context, favourite *models.FavouriteAsset) error {
+func AddFavouriteInDB(ctx context.Context, favourite *models.FavouriteAsset) error {
 	dataJSON, err := json.Marshal(favourite.Data)
 	if err != nil {
 		return fmt.Errorf("marshalling asset data: %w", err)
@@ -99,7 +92,7 @@ func (r *PostgresRepository) AddFavouriteInDB(ctx context.Context, favourite *mo
 		INSERT INTO favourites (id, user_id, asset_type, description, data, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
-	_, err = r.db.ExecContext(ctx, query,
+	_, err = DB.ExecContext(ctx, query,
 		favourite.ID, favourite.UserID, string(favourite.AssetType),
 		favourite.Description, dataJSON,
 		favourite.CreatedAt, favourite.UpdatedAt,
@@ -114,7 +107,7 @@ func (r *PostgresRepository) AddFavouriteInDB(ctx context.Context, favourite *mo
 	return nil
 }
 
-func (r *PostgresRepository) UpdateFavouriteInDB(favourite *models.FavouriteAsset) error {
+func UpdateFavouriteInDB(favourite *models.FavouriteAsset) error {
 	dataJSON, err := json.Marshal(favourite.Data)
 	if err != nil {
 		return fmt.Errorf("marshalling asset data: %w", err)
@@ -125,7 +118,7 @@ func (r *PostgresRepository) UpdateFavouriteInDB(favourite *models.FavouriteAsse
 		SET description = $1, data = $2, updated_at = $3
 		WHERE user_id = $4 AND id = $5`
 
-	result, err := r.db.Exec(query,
+	result, err := DB.Exec(query,
 		favourite.Description, dataJSON, favourite.UpdatedAt,
 		favourite.UserID, favourite.ID,
 	)
@@ -143,10 +136,10 @@ func (r *PostgresRepository) UpdateFavouriteInDB(favourite *models.FavouriteAsse
 	return nil
 }
 
-func (r *PostgresRepository) DeleteFavouriteFromDB(userID, assetID string) error {
+func DeleteFavouriteFromDB(userID, assetID string) error {
 	const query = `DELETE FROM favourites WHERE user_id = $1 AND id = $2`
 
-	result, err := r.db.Exec(query, userID, assetID)
+	result, err := DB.Exec(query, userID, assetID)
 	if err != nil {
 		return fmt.Errorf("deleting favourite: %w", err)
 	}

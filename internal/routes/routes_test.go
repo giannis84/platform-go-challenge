@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/giannis84/platform-go-challenge/internal/database"
 	"github.com/giannis84/platform-go-challenge/internal/logging"
 	"github.com/giannis84/platform-go-challenge/internal/models"
 	"github.com/go-chi/chi/v5"
@@ -47,9 +48,11 @@ func setupTestHandler(t *testing.T) (*chi.Mux, sqlmock.Sqlmock) {
 	}
 	t.Cleanup(func() { db.Close() })
 
+	database.DB = db
+
 	router := chi.NewRouter()
 	router.Use(logging.RequestLogger(logger))
-	router.Group(RegisterFavouritesRoutes(db, ""))
+	router.Group(RegisterFavouritesRoutes(""))
 
 	return router, mock
 }

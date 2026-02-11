@@ -17,7 +17,7 @@ func testLogger() *slog.Logger {
 func TestNewService(t *testing.T) {
 	tests := []struct {
 		name             string
-		cfg              ServiceConfig
+		svc              *Service
 		wantAddr         string
 		wantReadTimeout  time.Duration
 		wantWriteTimeout time.Duration
@@ -25,7 +25,7 @@ func TestNewService(t *testing.T) {
 	}{
 		{
 			name: "applies default timeouts when none provided",
-			cfg: ServiceConfig{
+			svc: &Service{
 				Addr:   ":8080",
 				Logger: testLogger(),
 			},
@@ -36,7 +36,7 @@ func TestNewService(t *testing.T) {
 		},
 		{
 			name: "uses custom timeouts when provided",
-			cfg: ServiceConfig{
+			svc: &Service{
 				Addr:         ":9090",
 				Logger:       testLogger(),
 				ReadTimeout:  5 * time.Second,
@@ -50,7 +50,7 @@ func TestNewService(t *testing.T) {
 		},
 		{
 			name: "partial custom timeouts uses defaults for the rest",
-			cfg: ServiceConfig{
+			svc: &Service{
 				Addr:        ":8080",
 				Logger:      testLogger(),
 				ReadTimeout: 3 * time.Second,
@@ -64,28 +64,28 @@ func TestNewService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.cfg)
+			tt.svc.Init()
 
-			if svc.HTTPServer == nil {
+			if tt.svc.HTTPServer == nil {
 				t.Fatal("expected HTTPServer to be set")
 			}
-			if svc.Router == nil {
+			if tt.svc.Router == nil {
 				t.Fatal("expected Router to be set")
 			}
-			if svc.Logger == nil {
+			if tt.svc.Logger == nil {
 				t.Fatal("expected Logger to be set")
 			}
-			if svc.HTTPServer.Addr != tt.wantAddr {
-				t.Errorf("expected Addr %q, got %q", tt.wantAddr, svc.HTTPServer.Addr)
+			if tt.svc.HTTPServer.Addr != tt.wantAddr {
+				t.Errorf("expected Addr %q, got %q", tt.wantAddr, tt.svc.HTTPServer.Addr)
 			}
-			if svc.HTTPServer.ReadTimeout != tt.wantReadTimeout {
-				t.Errorf("expected ReadTimeout %v, got %v", tt.wantReadTimeout, svc.HTTPServer.ReadTimeout)
+			if tt.svc.HTTPServer.ReadTimeout != tt.wantReadTimeout {
+				t.Errorf("expected ReadTimeout %v, got %v", tt.wantReadTimeout, tt.svc.HTTPServer.ReadTimeout)
 			}
-			if svc.HTTPServer.WriteTimeout != tt.wantWriteTimeout {
-				t.Errorf("expected WriteTimeout %v, got %v", tt.wantWriteTimeout, svc.HTTPServer.WriteTimeout)
+			if tt.svc.HTTPServer.WriteTimeout != tt.wantWriteTimeout {
+				t.Errorf("expected WriteTimeout %v, got %v", tt.wantWriteTimeout, tt.svc.HTTPServer.WriteTimeout)
 			}
-			if svc.HTTPServer.IdleTimeout != tt.wantIdleTimeout {
-				t.Errorf("expected IdleTimeout %v, got %v", tt.wantIdleTimeout, svc.HTTPServer.IdleTimeout)
+			if tt.svc.HTTPServer.IdleTimeout != tt.wantIdleTimeout {
+				t.Errorf("expected IdleTimeout %v, got %v", tt.wantIdleTimeout, tt.svc.HTTPServer.IdleTimeout)
 			}
 		})
 	}
@@ -121,11 +121,12 @@ func TestNewService_RoutesRegistered(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(ServiceConfig{
+			svc := &Service{
 				Addr:   ":0",
 				Logger: testLogger(),
 				Routes: tt.routes,
-			})
+			}
+			svc.Init()
 
 			// Use the router directly as an http.Handler — no need to start a server
 			rr := &fakeResponseWriter{headers: http.Header{}}
@@ -140,10 +141,11 @@ func TestNewService_RoutesRegistered(t *testing.T) {
 }
 
 func TestNewService_HandlerIsRouter(t *testing.T) {
-	svc := NewService(ServiceConfig{
+	svc := &Service{
 		Addr:   ":8080",
 		Logger: testLogger(),
-	})
+	}
+	svc.Init()
 
 	if svc.HTTPServer.Handler != svc.Router {
 		t.Error("expected HTTPServer.Handler to be the chi router")

@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -16,8 +15,7 @@ import (
 
 // RegisterFavouritesRoutes sets up the favourites API routes.
 // HTTP concerns are handled here, while business logic is delegated to the handlers package.
-func RegisterFavouritesRoutes(db *sql.DB, jwtSecret string) func(r chi.Router) {
-	handlers.Repo = database.NewPostgresRepository(db)
+func RegisterFavouritesRoutes(jwtSecret string) func(r chi.Router) {
 	return func(r chi.Router) {
 		r.Route("/api/v1", func(r chi.Router) {
 			r.Use(auth.JWTMiddleware(jwtSecret))

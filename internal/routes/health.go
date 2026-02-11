@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/giannis84/platform-go-challenge/internal/database"
@@ -9,8 +8,7 @@ import (
 )
 
 // RegisterHealthRoutes creates the health check endpoints.
-// The provided db is used for readiness checks.
-func RegisterHealthRoutes(db *sql.DB) func(r chi.Router) {
+func RegisterHealthRoutes() func(r chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/health/live", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -18,7 +16,7 @@ func RegisterHealthRoutes(db *sql.DB) func(r chi.Router) {
 		})
 
 		r.Get("/health/ready", func(w http.ResponseWriter, r *http.Request) {
-			if err := database.PingDB(r.Context(), db); err != nil {
+			if err := database.PingDB(r.Context()); err != nil {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				w.Write([]byte("database not ready"))
 				return

@@ -54,6 +54,6 @@ func Connect(dsn string) (*sql.DB, error) {
 }
 
 // PingDB checks database connectivity. Intended for health check endpoints.
-func PingDB(ctx context.Context, db *sql.DB) error {
-	return db.PingContext(ctx)
+func PingDB(ctx context.Context) error {
+	return DB.PingContext(ctx)
 }

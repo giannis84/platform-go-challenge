@@ -4,6 +4,20 @@
 // Usage:
 //
 //	go run ./tools/swaggergen
+//
+// # For Contributors
+//
+// When you modify the API (add/change endpoints, request/response schemas, etc.),
+// update this file to keep the swagger spec in sync:
+//
+//  1. Endpoints: Edit buildPaths() to add/modify path items and operations
+//  2. Schemas: Edit buildSchemas() to add/modify request/response types
+//  3. Regenerate: Run `go run ./tools/swaggergen` from the project root
+//  4. Verify: Check api/swagger.yaml and api/swagger.json for correctness
+//
+// Helper functions:
+//   - errContent(): Returns standard error response content (reuse for error responses)
+//   - assetIDParam(): Returns the {assetID} path parameter definition
 package main
 
 import (
@@ -21,11 +35,11 @@ import (
 // ---------------------------------------------------------------------------
 
 type OpenAPI struct {
-	OpenAPI    string               `json:"openapi"    yaml:"openapi"`
-	Info       Info                 `json:"info"       yaml:"info"`
-	Servers    []Server             `json:"servers"    yaml:"servers"`
-	Paths      map[string]*PathItem `json:"paths"      yaml:"paths"`
-	Components Components           `json:"components" yaml:"components"`
+	OpenAPI    string               `json:"openapi"              yaml:"openapi"`
+	Info       Info                 `json:"info"                 yaml:"info"`
+	Servers    []Server             `json:"servers,omitempty"    yaml:"servers,omitempty"`
+	Paths      map[string]*PathItem `json:"paths"                yaml:"paths"`
+	Components Components           `json:"components"           yaml:"components"`
 }
 
 type Info struct {
@@ -120,10 +134,6 @@ func buildSpec() OpenAPI {
 			Description: "REST API for managing user favourite assets (charts, insights, audiences).",
 			Version:     "1.0.0",
 		},
-		Servers: []Server{
-			{URL: "http://localhost:8000", Description: "Local API server"},
-			{URL: "http://localhost:8001", Description: "Local health-check server"},
-		},
 		Paths: buildPaths(bearerAuth),
 		Components: Components{
 			Schemas:         buildSchemas(),
@@ -134,44 +144,6 @@ func buildSpec() OpenAPI {
 
 func buildPaths(bearerAuth []map[string][]string) map[string]*PathItem {
 	return map[string]*PathItem{
-		"/health/live": {
-			Get: &Operation{
-				Tags:        []string{"Health"},
-				Summary:     "Liveness probe",
-				Description: "Returns 200 OK when the service process is running.",
-				OperationID: "healthLive",
-				Responses: map[string]Response{
-					"200": {
-						Description: "Service is alive",
-						Content: map[string]MediaType{
-							"text/plain": {Schema: Schema{Type: "string", Example: "OK"}},
-						},
-					},
-				},
-			},
-		},
-		"/health/ready": {
-			Get: &Operation{
-				Tags:        []string{"Health"},
-				Summary:     "Readiness probe",
-				Description: "Returns 200 when the service and its database are ready to accept traffic.",
-				OperationID: "healthReady",
-				Responses: map[string]Response{
-					"200": {
-						Description: "Service is ready",
-						Content: map[string]MediaType{
-							"text/plain": {Schema: Schema{Type: "string", Example: "Ready"}},
-						},
-					},
-					"503": {
-						Description: "Database not ready",
-						Content: map[string]MediaType{
-							"text/plain": {Schema: Schema{Type: "string", Example: "database not ready"}},
-						},
-					},
-				},
-			},
-		},
 		"/api/v1/favourites": {
 			Get: &Operation{
 				Tags:        []string{"Favourites"},

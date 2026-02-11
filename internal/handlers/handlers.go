@@ -9,10 +9,8 @@ import (
 	"github.com/giannis84/platform-go-challenge/internal/models"
 )
 
-var Repo *database.PostgresRepository
-
 func GetUserFavourites(userID string) ([]*models.FavouriteAsset, error) {
-	return Repo.GetUserFavouritesFromDB(userID)
+	return database.GetUserFavouritesFromDB(userID)
 }
 
 func AddFavourite(ctx context.Context, userID string, asset models.Asset, description string) error {
@@ -35,7 +33,7 @@ func AddFavourite(ctx context.Context, userID string, asset models.Asset, descri
 		Time("created_at", favourite.CreatedAt).
 		Info("creating favourite asset")
 
-	return Repo.AddFavouriteInDB(ctx, favourite)
+	return database.AddFavouriteInDB(ctx, favourite)
 }
 
 func UpdateDescription(userID, assetID, description string) error {
@@ -43,7 +41,7 @@ func UpdateDescription(userID, assetID, description string) error {
 		return err
 	}
 
-	favourite, err := Repo.GetFavouriteFromDB(userID, assetID)
+	favourite, err := database.GetFavouriteFromDB(userID, assetID)
 	if err != nil {
 		return err
 	}
@@ -51,11 +49,11 @@ func UpdateDescription(userID, assetID, description string) error {
 	favourite.Description = description
 	favourite.UpdatedAt = time.Now()
 
-	return Repo.UpdateFavouriteInDB(favourite)
+	return database.UpdateFavouriteInDB(favourite)
 }
 
 func RemoveFavourite(userID, assetID string) error {
-	return Repo.DeleteFavouriteFromDB(userID, assetID)
+	return database.DeleteFavouriteFromDB(userID, assetID)
 }
 
 // validateAsset chooses the correct validation function based on asset type.

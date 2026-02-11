@@ -41,16 +41,27 @@ func main() {
 	logger.Info("database ready")
 
 	// Create health check and favourites http services
-	healthService := internal.NewService(internal.ServiceConfig{
-		Addr:   cfg.HealthAddr(),
-		Logger: logger,
-		Routes: routes.RegisterHealthRoutes(db),
-	})
-	apiService := internal.NewService(internal.ServiceConfig{
-		Addr:   cfg.APIAddr(),
-		Logger: logger,
-		Routes: routes.RegisterFavouritesRoutes(db, cfg.JWTSecret),
-	})
+	healthService := &internal.Service{
+		Addr:         cfg.HealthAddr(),
+		Logger:       logger,
+		DB:           db,
+		Routes:       routes.RegisterHealthRoutes(),
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
+	}
+	healthService.Init()
+
+	apiService := &internal.Service{
+		Addr:         cfg.APIAddr(),
+		Logger:       logger,
+		DB:           db,
+		Routes:       routes.RegisterFavouritesRoutes(cfg.JWTSecret),
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
+	}
+	apiService.Init()
 
 	// Start http service threads
 	go func() {

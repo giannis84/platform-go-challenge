@@ -14,14 +14,15 @@ import (
 
 var testCols = []string{"id", "user_id", "asset_type", "description", "data", "created_at", "updated_at"}
 
-func newTestRepo(t *testing.T) (*PostgresRepository, sqlmock.Sqlmock) {
+func setupTestDB(t *testing.T) sqlmock.Sqlmock {
 	t.Helper()
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("failed to create sqlmock: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	return NewPostgresRepository(db), mock
+	DB = db
+	return mock
 }
 
 func testChartJSON(id string) []byte {
@@ -35,13 +36,13 @@ func TestGetUserFavouritesFromDB(t *testing.T) {
 	now := time.Now()
 
 	t.Run("returns favourites", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectQuery("SELECT .+ FROM favourites WHERE user_id").
 			WithArgs("user1").
 			WillReturnRows(sqlmock.NewRows(testCols).
 				AddRow("c1", "user1", "chart", "desc", testChartJSON("c1"), now, now))
 
-		favs, err := repo.GetUserFavouritesFromDB("user1")
+		favs, err := GetUserFavouritesFromDB("user1")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -57,12 +58,12 @@ func TestGetUserFavouritesFromDB(t *testing.T) {
 	})
 
 	t.Run("returns empty for unknown user", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectQuery("SELECT .+ FROM favourites WHERE user_id").
 			WithArgs("unknown").
 			WillReturnRows(sqlmock.NewRows(testCols))
 
-		favs, err := repo.GetUserFavouritesFromDB("unknown")
+		favs, err := GetUserFavouritesFromDB("unknown")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -75,11 +76,11 @@ func TestGetUserFavouritesFromDB(t *testing.T) {
 	})
 
 	t.Run("returns error on query failure", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectQuery("SELECT .+ FROM favourites WHERE user_id").
 			WillReturnError(fmt.Errorf("connection failed"))
 
-		_, err := repo.GetUserFavouritesFromDB("user1")
+		_, err := GetUserFavouritesFromDB("user1")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -95,13 +96,13 @@ func TestGetFavouriteFromDB(t *testing.T) {
 	now := time.Now()
 
 	t.Run("returns favourite", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectQuery("SELECT .+ FROM favourites WHERE user_id").
 			WithArgs("user1", "c1").
 			WillReturnRows(sqlmock.NewRows(testCols).
 				AddRow("c1", "user1", "chart", "desc", testChartJSON("c1"), now, now))
 
-		fav, err := repo.GetFavouriteFromDB("user1", "c1")
+		fav, err := GetFavouriteFromDB("user1", "c1")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -114,12 +115,12 @@ func TestGetFavouriteFromDB(t *testing.T) {
 	})
 
 	t.Run("returns ErrNotFound", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectQuery("SELECT .+ FROM favourites WHERE user_id").
 			WithArgs("user1", "missing").
 			WillReturnRows(sqlmock.NewRows(testCols))
 
-		_, err := repo.GetFavouriteFromDB("user1", "missing")
+		_, err := GetFavouriteFromDB("user1", "missing")
 		if err != ErrNotFound {
 			t.Errorf("expected ErrNotFound, got: %v", err)
 		}
@@ -140,11 +141,11 @@ func TestAddFavouriteInDB(t *testing.T) {
 	}
 
 	t.Run("inserts successfully", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectExec("INSERT INTO favourites").
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		err := repo.AddFavouriteInDB(context.Background(), fav)
+		err := AddFavouriteInDB(context.Background(), fav)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -154,11 +155,11 @@ func TestAddFavouriteInDB(t *testing.T) {
 	})
 
 	t.Run("returns ErrAlreadyExists on unique violation", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectExec("INSERT INTO favourites").
 			WillReturnError(&pq.Error{Code: "23505"})
 
-		err := repo.AddFavouriteInDB(context.Background(), fav)
+		err := AddFavouriteInDB(context.Background(), fav)
 		if err != ErrAlreadyExists {
 			t.Errorf("expected ErrAlreadyExists, got: %v", err)
 		}
@@ -168,11 +169,11 @@ func TestAddFavouriteInDB(t *testing.T) {
 	})
 
 	t.Run("returns error on insert failure", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectExec("INSERT INTO favourites").
 			WillReturnError(fmt.Errorf("connection failed"))
 
-		err := repo.AddFavouriteInDB(context.Background(), fav)
+		err := AddFavouriteInDB(context.Background(), fav)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -193,11 +194,11 @@ func TestUpdateFavouriteInDB(t *testing.T) {
 	}
 
 	t.Run("updates successfully", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectExec("UPDATE favourites").
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		err := repo.UpdateFavouriteInDB(fav)
+		err := UpdateFavouriteInDB(fav)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -207,11 +208,11 @@ func TestUpdateFavouriteInDB(t *testing.T) {
 	})
 
 	t.Run("returns ErrNotFound when no rows affected", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectExec("UPDATE favourites").
 			WillReturnResult(sqlmock.NewResult(0, 0))
 
-		err := repo.UpdateFavouriteInDB(fav)
+		err := UpdateFavouriteInDB(fav)
 		if err != ErrNotFound {
 			t.Errorf("expected ErrNotFound, got: %v", err)
 		}
@@ -225,11 +226,11 @@ func TestUpdateFavouriteInDB(t *testing.T) {
 
 func TestDeleteFavouriteFromDB(t *testing.T) {
 	t.Run("deletes successfully", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectExec("DELETE FROM favourites").
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		err := repo.DeleteFavouriteFromDB("user1", "c1")
+		err := DeleteFavouriteFromDB("user1", "c1")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -239,11 +240,11 @@ func TestDeleteFavouriteFromDB(t *testing.T) {
 	})
 
 	t.Run("returns ErrNotFound when no rows affected", func(t *testing.T) {
-		repo, mock := newTestRepo(t)
+		mock := setupTestDB(t)
 		mock.ExpectExec("DELETE FROM favourites").
 			WillReturnResult(sqlmock.NewResult(0, 0))
 
-		err := repo.DeleteFavouriteFromDB("user1", "missing")
+		err := DeleteFavouriteFromDB("user1", "missing")
 		if err != ErrNotFound {
 			t.Errorf("expected ErrNotFound, got: %v", err)
 		}

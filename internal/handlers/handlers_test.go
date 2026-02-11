@@ -24,7 +24,7 @@ func testContext() context.Context {
 
 var testCols = []string{"id", "user_id", "asset_type", "description", "data", "created_at", "updated_at"}
 
-// setupTest creates a sqlmock-backed repo and returns the mock + test context.
+// setupTest creates a sqlmock-backed db and returns the mock + test context.
 func setupTest(t *testing.T) (sqlmock.Sqlmock, context.Context) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
@@ -32,7 +32,7 @@ func setupTest(t *testing.T) (sqlmock.Sqlmock, context.Context) {
 		t.Fatalf("failed to create sqlmock: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	Repo = database.NewPostgresRepository(db)
+	database.DB = db
 	return mock, testContext()
 }
 

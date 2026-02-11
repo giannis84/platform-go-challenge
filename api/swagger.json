@@ -5,16 +5,6 @@
     "description": "REST API for managing user favourite assets (charts, insights, audiences).",
     "version": "1.0.0"
   },
-  "servers": [
-    {
-      "url": "http://localhost:8000",
-      "description": "Local API server"
-    },
-    {
-      "url": "http://localhost:8001",
-      "description": "Local health-check server"
-    }
-  ],
   "paths": {
     "/api/v1/favourites": {
       "get": {
@@ -271,63 +261,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/health/live": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Liveness probe",
-        "description": "Returns 200 OK when the service process is running.",
-        "operationId": "healthLive",
-        "responses": {
-          "200": {
-            "description": "Service is alive",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string",
-                  "example": "OK"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/health/ready": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Readiness probe",
-        "description": "Returns 200 when the service and its database are ready to accept traffic.",
-        "operationId": "healthReady",
-        "responses": {
-          "200": {
-            "description": "Service is ready",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string",
-                  "example": "Ready"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Database not ready",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string",
-                  "example": "database not ready"
                 }
               }
             }
