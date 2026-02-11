@@ -6,18 +6,35 @@ import (
 	"net/http"
 
 	"github.com/giannis84/platform-go-challenge/internal/auth"
+	"github.com/giannis84/platform-go-challenge/internal/config"
 	"github.com/giannis84/platform-go-challenge/internal/database"
 	"github.com/giannis84/platform-go-challenge/internal/handlers"
 	"github.com/giannis84/platform-go-challenge/internal/logging"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/httprate"
 )
 
 // RegisterFavouritesRoutes sets up the favourites API routes.
 // HTTP concerns are handled here, while business logic is delegated to the handlers package.
-func RegisterFavouritesRoutes(authCfg auth.AuthConfig) func(r chi.Router) {
+func RegisterFavouritesRoutes(authCfg auth.AuthConfig, rateCfg config.RateLimitConfig) func(r chi.Router) {
 	return func(r chi.Router) {
 		r.Route("/api/v1", func(r chi.Router) {
 			r.Use(auth.JWTMiddleware(authCfg))
+
+			// Apply per-user rate limiting (keyed by JWT sub claim) if configured
+			if rateCfg.Requests > 0 && rateCfg.Window > 0 {
+				r.Use(httprate.Limit(
+					rateCfg.Requests,
+					rateCfg.Window,
+					httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
+						return auth.UserIDFromContext(r.Context()), nil
+					}),
+					httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
+						respondWithError(w, http.StatusTooManyRequests, "rate limit exceeded")
+					}),
+				))
+			}
+
 			r.Route("/favourites", func(r chi.Router) {
 				r.Use(acceptJSONMiddleware)
 				r.Use(contentTypeJSONMiddleware)

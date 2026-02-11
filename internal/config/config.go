@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/giannis84/platform-go-challenge/internal/auth"
@@ -38,6 +39,10 @@ type Config struct {
 	DBUser     string `yaml:"-"`
 	DBPassword string `yaml:"-"`
 	DBName     string `yaml:"-"`
+
+	// Rate limiting configuration
+	RateLimitRequests int           `yaml:"rate_limit_requests"` // Max requests per window (0 = disabled)
+	RateLimitWindow   time.Duration `yaml:"rate_limit_window"`   // Time window for rate limiting
 }
 
 // Load reads configuration with the following precedence (highest wins):
@@ -120,6 +125,23 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("POSTGRES_DB env var is required")
 	}
 
+	// Rate limiting configuration (env vars override config file)
+	if v := os.Getenv("RATE_LIMIT_REQUESTS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.RateLimitRequests = n
+		}
+	}
+	if v := os.Getenv("RATE_LIMIT_WINDOW"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.RateLimitWindow = d
+		}
+	}
+
+	// Apply rate limiting defaults if partially configured
+	if cfg.RateLimitRequests > 0 && cfg.RateLimitWindow == 0 {
+		cfg.RateLimitWindow = time.Minute // Default window: 1 minute
+	}
+
 	return cfg, nil
 }
 
@@ -146,5 +168,19 @@ func (c *Config) AuthConfig() auth.AuthConfig {
 	return auth.AuthConfig{
 		Secret:              c.JWTSecret,
 		AllowUnsignedTokens: c.AllowUnsignedTokens,
+	}
+}
+
+// RateLimitConfig holds rate limiting settings.
+type RateLimitConfig struct {
+	Requests int           // Max requests per window (0 = disabled)
+	Window   time.Duration // Time window for rate limiting
+}
+
+// RateLimitConfig returns the rate limiting configuration.
+func (c *Config) RateLimitConfig() RateLimitConfig {
+	return RateLimitConfig{
+		Requests: c.RateLimitRequests,
+		Window:   c.RateLimitWindow,
 	}
 }

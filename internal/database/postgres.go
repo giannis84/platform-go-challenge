@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	// PostgreSQL driver — imported for side-effect registration with database/sql.
 	_ "github.com/lib/pq"
 )
 

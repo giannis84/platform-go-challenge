@@ -7,3 +7,9 @@ health_port: "8001"
 # read_timeout: 15s
 # write_timeout: 15s
 # idle_timeout: 60s
+
+# Rate limiting (optional — 0 = disabled)
+# Limits requests per user per time window to protect against abuse.
+# Can be overridden via RATE_LIMIT_REQUESTS and RATE_LIMIT_WINDOW env vars.
+rate_limit_requests: 100  # Max requests per window per user
+rate_limit_window: 1m     # Time window (e.g., 1m, 30s, 1h)
