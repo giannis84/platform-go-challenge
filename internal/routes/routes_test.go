@@ -275,3 +275,37 @@ func TestFavouritesRoutes_AddDuplicateFavourite(t *testing.T) {
 		t.Errorf("unmet expectations: %v", err)
 	}
 }
+
+func TestFavouritesRoutes_WhitespaceAssetID(t *testing.T) {
+	router, _ := setupTestHandler(t)
+
+	tests := []struct {
+		name     string
+		method   string
+		assetID  string
+		wantCode int
+	}{
+		{name: "PATCH with whitespace assetID", method: "PATCH", assetID: "%20%20", wantCode: http.StatusBadRequest},
+		{name: "DELETE with whitespace assetID", method: "DELETE", assetID: "%20", wantCode: http.StatusBadRequest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.method == "PATCH" {
+				body, _ := json.Marshal(map[string]string{"description": "test"})
+				req = httptest.NewRequest(tt.method, "/api/v1/favourites/"+tt.assetID, bytes.NewBuffer(body))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(tt.method, "/api/v1/favourites/"+tt.assetID, nil)
+			}
+			addAuthHeader(req, "user1")
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantCode {
+				t.Errorf("expected status %d, got %d. Body: %s", tt.wantCode, rr.Code, rr.Body.String())
+			}
+		})
+	}
+}

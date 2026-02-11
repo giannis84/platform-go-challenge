@@ -9,7 +9,6 @@ import (
 	"github.com/giannis84/platform-go-challenge/internal/database"
 	"github.com/giannis84/platform-go-challenge/internal/handlers"
 	"github.com/giannis84/platform-go-challenge/internal/logging"
-	"github.com/giannis84/platform-go-challenge/internal/models"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -31,25 +30,6 @@ func RegisterFavouritesRoutes(jwtSecret string) func(r chi.Router) {
 
 type ErrorResponse struct {
 	Error string `json:"error"`
-}
-
-// Request payloads
-type AddFavouriteRequest struct {
-	AssetType   AssetType       `json:"asset_type"`
-	Description string          `json:"description"`
-	AssetData   json.RawMessage `json:"asset_data"`
-}
-
-type AssetType string
-
-const (
-	AssetTypeChart    AssetType = "chart"
-	AssetTypeInsight  AssetType = "insight"
-	AssetTypeAudience AssetType = "audience"
-)
-
-type UpdateDescriptionRequest struct {
-	Description string `json:"description"`
 }
 
 func getUserFavouritesRoute() http.HandlerFunc {
@@ -80,7 +60,7 @@ func addUserFavouriteRoute() http.HandlerFunc {
 		ctx := r.Context()
 		userID := auth.UserIDFromContext(ctx)
 
-		var req AddFavouriteRequest
+		var req handlers.AddFavouriteRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logging.Log(ctx).Layer("routes").Op("addUserFavourite").User(userID).Err(err).
 				Error("failed to decode request body")
@@ -92,38 +72,11 @@ func addUserFavouriteRoute() http.HandlerFunc {
 			AssetType(string(req.AssetType)).Str("asset_data", string(req.AssetData)).
 			Info("received add favourite request")
 
-		var asset models.Asset
-		var err error
-
-		switch req.AssetType {
-		case AssetTypeChart:
-			var chart models.Chart
-			if err := json.Unmarshal(req.AssetData, &chart); err != nil {
-				logging.Log(ctx).Layer("routes").User(userID).Err(err).Error("failed to unmarshal chart data")
-				respondWithError(w, http.StatusBadRequest, "Invalid chart data")
-				return
-			}
-			asset = &chart
-		case AssetTypeInsight:
-			var insight models.Insight
-			if err := json.Unmarshal(req.AssetData, &insight); err != nil {
-				logging.Log(ctx).Layer("routes").User(userID).Err(err).Error("failed to unmarshal insight data")
-				respondWithError(w, http.StatusBadRequest, "Invalid insight data")
-				return
-			}
-			asset = &insight
-		case AssetTypeAudience:
-			var audience models.Audience
-			if err := json.Unmarshal(req.AssetData, &audience); err != nil {
-				logging.Log(ctx).Layer("routes").User(userID).Err(err).Error("failed to unmarshal audience data")
-				respondWithError(w, http.StatusBadRequest, "Invalid audience data")
-				return
-			}
-			asset = &audience
-		default:
-			logging.Log(ctx).Layer("routes").User(userID).AssetType(string(req.AssetType)).
-				Warn("invalid asset type received")
-			respondWithError(w, http.StatusBadRequest, "Invalid asset_type")
+		asset, err := handlers.ParseAddFavouriteRequest(&req)
+		if err != nil {
+			logging.Log(ctx).Layer("routes").User(userID).Err(err).
+				Warn("invalid add favourite request")
+			respondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -158,12 +111,12 @@ func updateUserFavouriteRoute() http.HandlerFunc {
 		userID := auth.UserIDFromContext(ctx)
 		assetID := chi.URLParam(r, "assetID")
 
-		if assetID == "" {
-			respondWithError(w, http.StatusBadRequest, "asset_id is required")
+		if err := handlers.ValidateAssetID(assetID); err != nil {
+			respondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		var req UpdateDescriptionRequest
+		var req handlers.UpdateDescriptionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			logging.Log(ctx).Layer("routes").User(userID).Asset(assetID).Err(err).
 				Error("failed to decode request body")
@@ -207,8 +160,8 @@ func removeUserFavouriteRoute() http.HandlerFunc {
 		userID := auth.UserIDFromContext(ctx)
 		assetID := chi.URLParam(r, "assetID")
 
-		if assetID == "" {
-			respondWithError(w, http.StatusBadRequest, "asset_id is required")
+		if err := handlers.ValidateAssetID(assetID); err != nil {
+			respondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 

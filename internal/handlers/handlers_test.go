@@ -333,6 +333,25 @@ func TestValidateDescription(t *testing.T) {
 	}
 }
 
+func TestValidateAssetID(t *testing.T) {
+	tests := []struct {
+		name      string
+		assetID   string
+		wantErr   bool
+		errSubstr string
+	}{
+		{name: "valid asset id", assetID: "asset123"},
+		{name: "empty asset id", assetID: "", wantErr: true, errSubstr: "asset_id is required"},
+		{name: "whitespace-only asset id", assetID: "   ", wantErr: true, errSubstr: "asset_id is required"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertValidation(t, ValidateAssetID(tt.assetID), tt.wantErr, tt.errSubstr)
+		})
+	}
+}
+
 func TestValidationErrorCollectsAllFieldErrors(t *testing.T) {
 	err := validateChart(&models.Chart{})
 	valErr, ok := err.(*ValidationError)

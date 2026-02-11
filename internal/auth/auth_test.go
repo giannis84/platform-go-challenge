@@ -18,6 +18,13 @@ func unsignedToken(sub string, exp time.Time) string {
 	return s
 }
 
+func unsignedTokenWithoutSubjectClaim(exp time.Time) string {
+	claims := jwt.MapClaims{"exp": exp.Unix()}
+	token := jwt.NewWithClaims(jwt.SigningMethodNone, claims)
+	s, _ := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	return s
+}
+
 func signedToken(sub, secret string, exp time.Time) string {
 	claims := jwt.MapClaims{"sub": sub, "exp": exp.Unix()}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -67,6 +74,16 @@ func TestJWTMiddleware_UnsignedMode(t *testing.T) {
 		{
 			name:       "garbage token",
 			authHeader: "Bearer not.a.token",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "token missing sub claim",
+			authHeader: "Bearer " + unsignedTokenWithoutSubjectClaim(time.Now().Add(time.Hour)),
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "token with empty sub claim",
+			authHeader: "Bearer " + unsignedToken("", time.Now().Add(time.Hour)),
 			wantStatus: http.StatusUnauthorized,
 		},
 	}

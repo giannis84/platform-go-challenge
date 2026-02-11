@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,72 @@ import (
 )
 
 const maxStringLength = 255
+
+// AssetType represents the type of asset being favourited.
+type AssetType string
+
+const (
+	AssetTypeChart    AssetType = "chart"
+	AssetTypeInsight  AssetType = "insight"
+	AssetTypeAudience AssetType = "audience"
+)
+
+// AddFavouriteRequest is the request payload for adding a favourite.
+type AddFavouriteRequest struct {
+	AssetType   AssetType       `json:"asset_type"`
+	Description string          `json:"description"`
+	AssetData   json.RawMessage `json:"asset_data"`
+}
+
+// UpdateDescriptionRequest is the request payload for updating a favourite's description.
+type UpdateDescriptionRequest struct {
+	Description string `json:"description"`
+}
+
+// ParseAddFavouriteRequest validates the request and returns the parsed asset.
+// It handles asset type validation and type-specific unmarshaling.
+func ParseAddFavouriteRequest(req *AddFavouriteRequest) (models.Asset, error) {
+	switch req.AssetType {
+	case AssetTypeChart:
+		var chart models.Chart
+		if err := json.Unmarshal(req.AssetData, &chart); err != nil {
+			return nil, fmt.Errorf("invalid chart data: %w", err)
+		}
+		return &chart, nil
+	case AssetTypeInsight:
+		var insight models.Insight
+		if err := json.Unmarshal(req.AssetData, &insight); err != nil {
+			return nil, fmt.Errorf("invalid insight data: %w", err)
+		}
+		return &insight, nil
+	case AssetTypeAudience:
+		var audience models.Audience
+		if err := json.Unmarshal(req.AssetData, &audience); err != nil {
+			return nil, fmt.Errorf("invalid audience data: %w", err)
+		}
+		return &audience, nil
+	default:
+		return nil, fmt.Errorf("invalid asset_type: %q", req.AssetType)
+	}
+}
+
+// ValidateAssetID validates that an asset ID is not empty.
+func ValidateAssetID(assetID string) error {
+	if strings.TrimSpace(assetID) == "" {
+		return &ValidationError{Errors: []string{"asset_id is required"}}
+	}
+	return nil
+}
+
+// IsInvalidAssetType returns true if the error is due to invalid asset type.
+func IsInvalidAssetType(err error) bool {
+	return err != nil && strings.HasPrefix(err.Error(), "invalid asset_type:")
+}
+
+// IsInvalidAssetData returns true if the error is due to invalid asset data.
+func IsInvalidAssetData(err error) bool {
+	return err != nil && strings.HasPrefix(err.Error(), "invalid ")
+}
 
 var (
 	validGenders          = []string{"Male", "Female"}
