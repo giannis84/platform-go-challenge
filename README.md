@@ -13,6 +13,21 @@ There are two main concepts:
 
 Every request needs a JWT token in the `Authorization: Bearer <token>` header. The user ID is pulled from the token's `sub` claim — there's no user ID in the URL.
 
+### Required Headers
+
+| Header | Required For | Value |
+|--------|--------------|-------|
+| `Authorization` | All requests | `Bearer <token>` |
+| `Accept` | All requests | Must include `application/json` (or `*/*`) |
+| `Content-Type` | POST, PUT, PATCH | Must be `application/json` |
+
+Missing or invalid headers result in:
+- **401 Unauthorized** — missing or invalid JWT token
+- **406 Not Acceptable** — missing or invalid `Accept` header
+- **415 Unsupported Media Type** — missing or invalid `Content-Type` on requests with a body
+
+### Endpoints
+
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/v1/favourites` | Get all favourites for the authenticated user |
@@ -136,7 +151,9 @@ go run ./tools/tokengen -user alice
 Use the token with curl like this:
 
 ```bash
-curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/favourites
+curl -H "Authorization: Bearer <token>" \
+     -H "Accept: application/json" \
+     http://localhost:8000/api/v1/favourites
 ```
 
 ### Token Modes

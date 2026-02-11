@@ -19,6 +19,18 @@
             "BearerAuth": []
           }
         ],
+        "parameters": [
+          {
+            "name": "Accept",
+            "in": "header",
+            "description": "Must include application/json (or */*)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "application/json"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "A list of favourite assets",
@@ -35,6 +47,16 @@
           },
           "401": {
             "description": "Unauthorized - missing or invalid JWT"
+          },
+          "406": {
+            "description": "Not Acceptable - Accept header must include application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "500": {
             "description": "Internal server error",
@@ -58,6 +80,18 @@
         "security": [
           {
             "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Accept",
+            "in": "header",
+            "description": "Must include application/json (or */*)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "application/json"
+            }
           }
         ],
         "requestBody": {
@@ -95,8 +129,28 @@
           "401": {
             "description": "Unauthorized"
           },
+          "406": {
+            "description": "Not Acceptable - Accept header must include application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Favourite already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type - Content-Type must be application/json",
             "content": {
               "application/json": {
                 "schema": {
@@ -139,6 +193,16 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "Accept",
+            "in": "header",
+            "description": "Must include application/json (or */*)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "application/json"
             }
           }
         ],
@@ -186,6 +250,26 @@
               }
             }
           },
+          "406": {
+            "description": "Not Acceptable - Accept header must include application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type - Content-Type must be application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -219,6 +303,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "Accept",
+            "in": "header",
+            "description": "Must include application/json (or */*)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "application/json"
+            }
           }
         ],
         "responses": {
@@ -247,6 +341,16 @@
           },
           "404": {
             "description": "Favourite not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Not Acceptable - Accept header must include application/json",
             "content": {
               "application/json": {
                 "schema": {
