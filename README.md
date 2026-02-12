@@ -47,6 +47,7 @@ Missing or invalid headers result in:
 | `PATCH` | `/api/v1/favourites/{asset_id}` | Update a favourite's description |
 | `DELETE` | `/api/v1/favourites/{asset_id}` | Remove a favourite |
 | `GET` | `/health/ready` | Health check (served on a separate port, intended for deployment only) |
+| `GET` | `/health/live` | Health check (served on a separate port, intended for deployment only) |
 
 Here's what the request/response bodies look like:
 
