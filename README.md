@@ -96,7 +96,7 @@ Insight asset:
   "asset_type": "insight",
   "asset_data": {
     "id": "insight-001",
-    "text": "Users who engage with social media 3-5 hours daily have a 40% higher conversion rate"
+    "text": "Users who engage with social media 3-5 hours daily have a 40% higher rate"
   },
   "description": "Social media engagement insight"
 }
