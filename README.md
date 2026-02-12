@@ -133,6 +133,7 @@ The app reads port settings from `config.yaml` and/or environment variables (env
 | Health port | `HEALTH_PORT` | `health_port` | `8001` |
 | DB host | `POSTGRES_HOST` | — | `postgres` (in Compose) |
 | DB port | `POSTGRES_PORT` | — | `5432` |
+| DB host port | `POSTGRES_HOST_PORT` | — | `5432` (change in case of host port conflict) |
 | DB user | `POSTGRES_USER` | — | — |
 | DB password | `POSTGRES_PASSWORD` | — | — |
 | DB name | `POSTGRES_DB` | — | — |
