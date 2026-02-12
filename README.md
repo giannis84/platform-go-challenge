@@ -7,7 +7,7 @@ A small Go service that lets users save their favourite assets (charts, insights
 There are two main concepts:
 
 - **Assets** — these are platform entities like Charts, Insights, and Audiences.
-- **Favourites** — a user picks an asset they like. When users fetch their favourites, each one comes back with its full asset data and a description. The user is able to change and personalize the description. 
+- **Favourites** — a user picks an asset they like. When users fetch their favourites, each one comes back with its full asset data and a description. The user is able to add and change a personalized description. The user can remove an asset from favourites.
 
 ### Convention to simplify the demonstration of this project
 
@@ -18,6 +18,8 @@ The user picks favourites in the dashboard and they are related in the database:
 favourites(user_id, asset_id, description, PK(user_id, asset_id))
 
 Setting up a pre-existing assets table every time the Favourites Service runs would render the demonstartion of this project much more complex. It would add overhead, because a database setup script would have to be executed after Postgres is healhty and running with docker compose. To make things as simple as possible for the demonstration, I omit this step and let the POST operation add an asset and also mark it as favourite for the user.
+
+Asset IDs also are not UUIDs in this implementation. A simple check that a user does not have duplicate favourite IDs is implemented.
 
 ## API
 
@@ -49,6 +51,9 @@ Missing or invalid headers result in:
 Here's what the request/response bodies look like:
 
 **Adding a favourite (POST):**
+
+Chart asset:
+
 ```json
 {
   "asset_type": "chart",
@@ -64,6 +69,35 @@ Here's what the request/response bodies look like:
     }
   },
   "description": "Revenue trend for Q1 2026"
+}
+```
+
+Audience asset:
+
+```json
+{
+  "asset_type": "audience",
+  "description": "Tech-savvy millennials",
+  "asset_data": {
+    "id": "audience-123",
+    "gender": ["Male", "Female"],
+    "birth_country": ["US", "UK"],
+    "age_groups": ["25-34"],
+    "social_media_hours_daily": "3-5",
+    "purchases_last_month": 5
+  }
+}
+```
+Insight asset:
+
+```json
+{
+  "asset_type": "insight",
+  "asset_data": {
+    "id": "insight-001",
+    "text": "Users who engage with social media 3-5 hours daily have a 40% higher conversion rate"
+  },
+  "description": "Social media engagement insight"
 }
 ```
 
@@ -83,6 +117,9 @@ Here's what the request/response bodies look like:
   }
 ]
 ```
+
+**Remove a favourite:
+DELETE /api/v1/favourites/chart-1
 
 There is also a full OpenAPI spec in `api/swagger.yaml`.
 
@@ -114,7 +151,7 @@ The service needs PostgreSQL, so Docker Compose is required for local running an
 cp .env.example .env
 ```
 
-Open `.env` and fill in at least `POSTGRES_USER` and `POSTGRES_PASSWORD`.
+Open `.env` and fill in at least `POSTGRES_USER` and `POSTGRES_PASSWORD`. Set `ALLOW_UNSIGNED_TOKENS=true`, otherwise e2e tests will fail and requests will not be authorized.
 
 **2. Start everything:**
 
@@ -148,7 +185,7 @@ The unit tests mock the Postgres database, so Docker Compose is not required.
 
 ### End-to-end tests
 
-The E2E tests hit the real running services, so you need Docker Compose up first:
+The E2E tests hit the real running services, so you need Docker Compose up first and ensure that the .env file has `ALLOW_UNSIGNED_TOKENS=true`:
 
 ```bash
 docker compose up --build
