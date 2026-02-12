@@ -29,7 +29,7 @@ Every request needs a JWT token in the `Authorization: Bearer <token>` header. T
 |--------|--------------|-------|
 | `Authorization` | All requests | `Bearer <token>` |
 | `Accept` | All requests | Must include `application/json` (or `*/*`) |
-| `Content-Type` | POST, PUT, PATCH | Must be `application/json` |
+| `Content-Type` | POST, PATCH | Must be `application/json` |
 
 Missing or invalid headers result in:
 - **401 Unauthorized** — missing or invalid JWT token
@@ -42,7 +42,7 @@ Missing or invalid headers result in:
 |--------|------|-------------|
 | `GET` | `/api/v1/favourites` | Get all favourites for the authenticated user |
 | `POST` | `/api/v1/favourites` | Add a new favourite |
-| `PUT` | `/api/v1/favourites/{asset_id}` | Update a favourite's description |
+| `PATCH` | `/api/v1/favourites/{asset_id}` | Update a favourite's description |
 | `DELETE` | `/api/v1/favourites/{asset_id}` | Remove a favourite |
 | `GET` | `/health/ready` | Health check (served on a separate port) |
 
