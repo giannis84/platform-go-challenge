@@ -12,7 +12,7 @@ There are two main concepts:
 ### Convention to simplify the demonstration of this project
 
 The task assumes that the assets are stored in a pre-existing database table:
-assets(asset_id PK, asset_type, data JSONB)
+assets(asset_id PK, asset_type, description, data JSONB)
 
 The user picks favourites in the dashboard and they are related in the database:
 favourites(user_id, asset_id, description, PK(user_id, asset_id))
