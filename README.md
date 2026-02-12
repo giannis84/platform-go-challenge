@@ -9,6 +9,16 @@ There are two main concepts:
 - **Assets** — these are platform entities like Charts, Insights, and Audiences. They're seeded into an in-memory store when the app starts up. Think of them as the "catalog" of things a user can favourite.
 - **Favourites** — a user picks an asset they like and optionally adds a personal description. When you fetch a user's favourites, each one comes back enriched with its full asset data.
 
+### Convention to simplify the demonstration of this project
+
+The task assumes that the assets are stored in a pre-existing database table:
+assets(asset_id PK, asset_type, data JSONB)
+
+The user picks favourites in the dashboard and they are related in the database:
+favourites(user_id, asset_id, description, PK(user_id, asset_id))
+
+Setting up a pre-existing assets table every time the Favourites Service runs would render the demonstartion of this project much more complex. To make things as simple as possible for the demonstration, I omit this step and let the POST operation add an asset and also mark it as favourite for the user.
+
 ## API
 
 Every request needs a JWT token in the `Authorization: Bearer <token>` header. The user ID is pulled from the token's `sub` claim — there's no user ID in the URL.
@@ -40,15 +50,29 @@ Here's what the request/response bodies look like:
 
 **Adding a favourite (POST):**
 ```json
-{ "asset_id": "chart-1", "description": "My favourite chart" }
+{
+  "asset_type": "chart",
+  "asset_data": {
+    "id": "chart-001",
+    "title": "Monthly Revenue",
+    "x_axis_title": "Month",
+    "y_axis_title": "Revenue (USD)",
+    "data": {
+      "January": 12000,
+      "February": 15000,
+      "March": 18000
+    }
+  },
+  "description": "Revenue trend for Q1 2026"
+}
 ```
 
-**Updating a description (PUT):**
+**Updating a description (PATCH):**
 ```json
 { "description": "Updated description" }
 ```
 
-**Listing favourites (GET) — returns something like:**
+**Listing favourites (GET) — returns something similar to:**
 ```json
 [
   {
@@ -80,9 +104,9 @@ The app reads port settings from `config.yaml` and/or environment variables (env
 
 You can point to a different config file by setting the `CONFIG_PATH` env var.
 
-## Getting it running
+## How to run the service
 
-The service needs PostgreSQL, so Docker Compose is the way to go.
+The service needs PostgreSQL, so Docker Compose is required for local running and testing. A deployment.yaml is not included for Kubernetes support, however this project is designed for a straightforward deployment to Kubernetes as a next step.
 
 **1. Set up your `.env` file:**
 
@@ -138,17 +162,21 @@ go clean -testcache
 go test -v -count=1
 ```
 
-The tests automatically wait up to 60 seconds for the health endpoint before running, so you don't need to time it perfectly.
+After testing is complete, run:
+
+```bash
+docker compose down --volumes
+```
 
 ## Authentication
 
-The API uses JWTs. There's a handy little tool included to generate tokens:
+The API uses JWTs. There is a tool included to generate tokens:
 
 ```bash
 go run ./tools/tokengen -user alice
 ```
 
-Use the token with curl like this:
+Use the token with curl or Postman:
 
 ```bash
 curl -H "Authorization: Bearer <token>" \
@@ -165,15 +193,17 @@ The service supports two authentication modes:
 | **Signed tokens** | Set `JWT_SECRET` | Production — tokens must be HS256-signed with the secret |
 | **Unsigned tokens** | No `JWT_SECRET` + `ALLOW_UNSIGNED_TOKENS=true` | Local development and testing only |
 
-**Important:** Unsigned tokens (`alg=none`) require explicit opt-in via `ALLOW_UNSIGNED_TOKENS=true`. This is a safety measure — if you forget to set `JWT_SECRET` in production but don't set `ALLOW_UNSIGNED_TOKENS`, all requests will be rejected.
+**Important:** Unsigned tokens (`alg=none`) require explicit opt-in via `ALLOW_UNSIGNED_TOKENS=true`. This is a safety measure — if there is a failure to set `JWT_SECRET` in production but don't set `ALLOW_UNSIGNED_TOKENS`, all requests will be rejected.
 
-The Docker Compose setup defaults to `ALLOW_UNSIGNED_TOKENS=true` for easy local development. For production, always set a proper `JWT_SECRET` and leave `ALLOW_UNSIGNED_TOKENS` unset or `false`.
+The Docker Compose setup defaults to `ALLOW_UNSIGNED_TOKENS=true` for easy local development. For production, always set up Kubernetes to fetch a proper `JWT_SECRET` and leave `ALLOW_UNSIGNED_TOKENS` unset or `false`.
 
 ## Storage
 
-Favourites are stored in PostgreSQL. The table uses a composite primary key `(user_id, asset_id)` and keeps the polymorphic asset data in a `jsonb` column. The schema creates itself on startup (`CREATE TABLE IF NOT EXISTS`), so there's no migration step.
+Favourites are stored in PostgreSQL. The table uses a composite primary key `(user_id, asset_id)` and keeps the polymorphic asset data in a `jsonb` column. The schema creates itself on startup (`CREATE TABLE IF NOT EXISTS`).
 
-A few things I'd consider for production:
+A few things I would consider for production:
 
-- **Caching** — something like Redis for hot user favourite lists.
-- **Scaling** — partitioning the favourites table by user ID hash for horizontal scaling.
+- **Caching** — implement Cache-Control and ETag.
+- **Pipeline code** - Github Actions, Jenkins etc.
+- **Audit Logging**
+- **Observability** - OpenTelemetry instrumentation and Grafana 
