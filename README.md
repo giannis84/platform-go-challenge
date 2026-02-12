@@ -7,7 +7,7 @@ A small Go service that lets users save their favourite assets (charts, insights
 There are two main concepts:
 
 - **Assets** — these are platform entities like Charts, Insights, and Audiences.
-- **Favourites** — a user picks an asset they like and optionally adds a personal description. When you fetch a user's favourites, each one comes back enriched with its full asset data.
+- **Favourites** — a user picks an asset they like. When users fetch their favourites, each one comes back with its full asset data and a description. The user is able to change and personalize the description. 
 
 ### Convention to simplify the demonstration of this project
 
@@ -17,7 +17,7 @@ assets(asset_id PK, asset_type, data JSONB)
 The user picks favourites in the dashboard and they are related in the database:
 favourites(user_id, asset_id, description, PK(user_id, asset_id))
 
-Setting up a pre-existing assets table every time the Favourites Service runs would render the demonstartion of this project much more complex. To make things as simple as possible for the demonstration, I omit this step and let the POST operation add an asset and also mark it as favourite for the user.
+Setting up a pre-existing assets table every time the Favourites Service runs would render the demonstartion of this project much more complex. It would add overhead, because a database setup script would have to be executed after Postgres is healhty and running with docker compose. To make things as simple as possible for the demonstration, I omit this step and let the POST operation add an asset and also mark it as favourite for the user.
 
 ## API
 
@@ -44,7 +44,7 @@ Missing or invalid headers result in:
 | `POST` | `/api/v1/favourites` | Add a new favourite |
 | `PATCH` | `/api/v1/favourites/{asset_id}` | Update a favourite's description |
 | `DELETE` | `/api/v1/favourites/{asset_id}` | Remove a favourite |
-| `GET` | `/health/ready` | Health check (served on a separate port) |
+| `GET` | `/health/ready` | Health check (served on a separate port, intended for deployment only) |
 
 Here's what the request/response bodies look like:
 
@@ -84,7 +84,7 @@ Here's what the request/response bodies look like:
 ]
 ```
 
-There's also a full OpenAPI spec in `api/swagger.yaml` if you want the complete picture.
+There is also a full OpenAPI spec in `api/swagger.yaml`.
 
 ## Configuration
 
@@ -124,13 +124,13 @@ docker compose up --build
 
 This builds the Go binary, spins up Postgres, waits for it to be healthy, and then starts the app. Add `-d` to run it in the background.
 
-**3. When you're done:**
+**3. When you are done:**
 
 ```bash
 docker compose down
 ```
 
-If you want a clean slate (wipe the database too):
+If you want a clean state (wipe the database too):
 
 ```bash
 docker compose down --volumes
@@ -141,14 +141,14 @@ docker compose down --volumes
 ### Unit tests
 
 ```bash
-go test ./...
+go test ./internal/... -v
 ```
 
-These use an in-memory repository, so no database needed.
+The unit tests mock the Postgres database, so Docker Compose is not required.
 
 ### End-to-end tests
 
-The E2E tests hit the real running services, so you need Compose up first:
+The E2E tests hit the real running services, so you need Docker Compose up first:
 
 ```bash
 docker compose up --build
@@ -165,6 +165,7 @@ go test -v -count=1
 After testing is complete, run:
 
 ```bash
+cd ..
 docker compose down --volumes
 ```
 
@@ -174,6 +175,12 @@ The API uses JWTs. There is a tool included to generate tokens:
 
 ```bash
 go run ./tools/tokengen -user alice
+```
+
+Or with a JWT secret, which should also be included in the .env file with JWT_SECRET={SECRET}.
+
+```bash
+go run ./tools/tokengen -user alice -secret {SECRET}
 ```
 
 Use the token with curl or Postman:
@@ -199,7 +206,7 @@ The Docker Compose setup defaults to `ALLOW_UNSIGNED_TOKENS=true` for easy local
 
 ## Storage
 
-Favourites are stored in PostgreSQL. The table uses a composite primary key `(user_id, asset_id)` and keeps the polymorphic asset data in a `jsonb` column. The schema creates itself on startup (`CREATE TABLE IF NOT EXISTS`).
+Favourites are stored in PostgreSQL. The table uses a composite primary key `(user_id, asset_id)` and keeps the polymorphic asset data in a `jsonb` column. The schema creates itself on startup with (`CREATE TABLE IF NOT EXISTS`).
 
 A few things I would consider for production:
 
