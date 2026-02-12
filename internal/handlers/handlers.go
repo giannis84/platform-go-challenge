@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/giannis84/platform-go-challenge/internal/database"
-	"github.com/giannis84/platform-go-challenge/internal/logging"
 	"github.com/giannis84/platform-go-challenge/internal/models"
 )
 
@@ -27,11 +26,6 @@ func AddFavourite(ctx context.Context, userID string, asset models.Asset, descri
 		UpdatedAt:   time.Now(),
 		Data:        asset,
 	}
-
-	logging.Log(ctx).Layer("handler").Op("AddFavourite").User(userID).
-		Asset(favourite.ID).AssetType(string(favourite.AssetType)).
-		Time("created_at", favourite.CreatedAt).
-		Info("creating favourite asset")
 
 	return database.AddFavouriteInDB(ctx, favourite)
 }

@@ -145,7 +145,6 @@ func buildPaths(bearerAuth []map[string][]string) map[string]*PathItem {
 				Description: "Returns all favourite assets for the authenticated user.",
 				OperationID: "getUserFavourites",
 				Security:    bearerAuth,
-				Parameters:  []Parameter{acceptHeaderParam()},
 				Responses: map[string]Response{
 					"200": {
 						Description: "A list of favourite assets",
@@ -167,7 +166,6 @@ func buildPaths(bearerAuth []map[string][]string) map[string]*PathItem {
 				Description: "Adds a new asset to the authenticated user's favourites.",
 				OperationID: "addUserFavourite",
 				Security:    bearerAuth,
-				Parameters:  []Parameter{acceptHeaderParam()},
 				RequestBody: &RequestBody{
 					Required:    true,
 					Description: "Asset to favourite",
@@ -198,7 +196,7 @@ func buildPaths(bearerAuth []map[string][]string) map[string]*PathItem {
 				Description: "Updates the description of an existing favourite asset.",
 				OperationID: "updateUserFavourite",
 				Security:    bearerAuth,
-				Parameters:  []Parameter{assetIDParam(), acceptHeaderParam()},
+                Parameters:  []Parameter{assetIDParam()},
 				RequestBody: &RequestBody{
 					Required: true,
 					Content: map[string]MediaType{
@@ -226,7 +224,7 @@ func buildPaths(bearerAuth []map[string][]string) map[string]*PathItem {
 				Description: "Removes an asset from the authenticated user's favourites.",
 				OperationID: "removeUserFavourite",
 				Security:    bearerAuth,
-				Parameters:  []Parameter{assetIDParam(), acceptHeaderParam()},
+                Parameters:  []Parameter{assetIDParam()},
 				Responses: map[string]Response{
 					"200": {
 						Description: "Favourite removed",
@@ -259,15 +257,7 @@ func assetIDParam() Parameter {
 	}
 }
 
-func acceptHeaderParam() Parameter {
-	return Parameter{
-		Name:        "Accept",
-		In:          "header",
-		Description: "Must include application/json (or */*)",
-		Required:    true,
-		Schema:      Schema{Type: "string", Example: "application/json"},
-	}
-}
+
 
 func errContent() map[string]MediaType {
 	return map[string]MediaType{

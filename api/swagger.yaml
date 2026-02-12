@@ -13,14 +13,6 @@ paths:
             operationId: getUserFavourites
             security:
                 - BearerAuth: []
-            parameters:
-                - name: Accept
-                  in: header
-                  description: Must include application/json (or */*)
-                  required: true
-                  schema:
-                    type: string
-                    example: application/json
             responses:
                 "200":
                     description: A list of favourite assets
@@ -52,14 +44,6 @@ paths:
             operationId: addUserFavourite
             security:
                 - BearerAuth: []
-            parameters:
-                - name: Accept
-                  in: header
-                  description: Must include application/json (or */*)
-                  required: true
-                  schema:
-                    type: string
-                    example: application/json
             requestBody:
                 required: true
                 description: Asset to favourite
@@ -122,13 +106,6 @@ paths:
                   required: true
                   schema:
                     type: string
-                - name: Accept
-                  in: header
-                  description: Must include application/json (or */*)
-                  required: true
-                  schema:
-                    type: string
-                    example: application/json
             requestBody:
                 required: true
                 content:
@@ -189,13 +166,6 @@ paths:
                   required: true
                   schema:
                     type: string
-                - name: Accept
-                  in: header
-                  description: Must include application/json (or */*)
-                  required: true
-                  schema:
-                    type: string
-                    example: application/json
             responses:
                 "200":
                     description: Favourite removed
