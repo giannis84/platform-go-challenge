@@ -1,6 +1,6 @@
 # GWI Favourites Service
 
-A small Go service that lets users save their favourite assets (charts, insights, audiences). It connects to PostgreSQL for storage and is meant to be run with Docker Compose.
+A small Go service that lets users save their favourite assets (charts, insights, audiences). It connects to PostgreSQL for storage and is meant to be run with Docker Compose. It is has been developed and verified that it is working in Linux.
 
 ## How it works
 
