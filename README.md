@@ -6,7 +6,7 @@ A small Go service that lets users save their favourite assets (charts, insights
 
 There are two main concepts:
 
-- **Assets** — these are platform entities like Charts, Insights, and Audiences. They're seeded into an in-memory store when the app starts up. Think of them as the "catalog" of things a user can favourite.
+- **Assets** — these are platform entities like Charts, Insights, and Audiences.
 - **Favourites** — a user picks an asset they like and optionally adds a personal description. When you fetch a user's favourites, each one comes back enriched with its full asset data.
 
 ### Convention to simplify the demonstration of this project
