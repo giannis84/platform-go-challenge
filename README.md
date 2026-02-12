@@ -17,7 +17,7 @@ assets(asset_id PK, asset_type, description, data JSONB)
 The user picks favourites in the dashboard and they are related in the database:
 favourites(user_id, asset_id, description, PK(user_id, asset_id))
 
-Setting up a pre-existing assets table every time the Favourites Service runs would render the demonstartion of this project much more complex. It would add overhead, because a database setup script would have to be executed after Postgres is healhty and running with docker compose. To make things as simple as possible for the demonstration, I omit this step and let the POST operation add an asset and also mark it as favourite for the user.
+Setting up a pre-existing assets table every time the Favourites Service runs would render the demonstration of this project much more complex. It would add overhead, because a database setup script would have to be executed after Postgres is healhty and running with docker compose. To make things as simple as possible for the demonstration, I omit this step and let the POST operation add an asset and also mark it as favourite for the user.
 
 Asset IDs also are not UUIDs in this implementation. A simple check that a user does not have duplicate favourite IDs is implemented.
 
